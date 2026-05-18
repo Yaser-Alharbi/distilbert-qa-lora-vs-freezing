@@ -130,3 +130,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# macOS
+.DS_Store
+
+# Project runtime artefacts
+data/
+results/
+plots/
+
+# HuggingFace cache
+.cache/huggingface/
+
