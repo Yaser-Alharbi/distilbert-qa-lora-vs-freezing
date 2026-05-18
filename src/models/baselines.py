@@ -1,21 +1,29 @@
-"""Non-neural baselines for extractive QA on SQuAD v1.1."""
+"""Non-neural baselines for extractive QA on SQuAD v1.1.
+
+Both baselines expose the same ``predict(questions, contexts) -> List[str]``
+interface so that Stage 4 evaluation can treat them identically to the
+post-processed neural model outputs.
+"""
 
 from __future__ import annotations
 
-from typing import Any, List
+import re
+import random
+from typing import List
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 class RandomSpanBaseline:
-    """Predicts a uniformly random contiguous word span from the context."""
+    """Predicts a uniformly random contiguous word span from the context.
+
+    Interface:
+        ``predict(questions, contexts) -> List[str]``
+    Deterministic given *seed*. No training required.
+    """
 
     def __init__(self, max_span_len: int = 5, seed: int | None = None) -> None:
-        """Initialise the baseline.
-
-        Args:
-            max_span_len: Maximum number of words in a sampled span.
-            seed: Random seed for deterministic sampling.
-        """
-
         self.max_span_len = max_span_len
         self.seed = seed
 
@@ -30,22 +38,36 @@ class RandomSpanBaseline:
             One predicted answer string per input pair.
         """
 
-        # TODO(stage 2): sample (start, length) per context with self.seed.
-        raise NotImplementedError
+        rng = random.Random(self.seed)
+        predictions: List[str] = []
+        for context in contexts:
+            words = context.split()
+            if not words:
+                predictions.append("")
+                continue
+            span_len = rng.randint(1, min(self.max_span_len, len(words)))
+            start = rng.randint(0, len(words) - span_len)
+            predictions.append(" ".join(words[start : start + span_len]))
+        return predictions
+
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 class TfidfBaseline:
-    """Picks the context sentence with highest TF-IDF similarity to the question."""
+    """Returns the context sentence with highest TF-IDF cosine similarity to the question.
+
+    Sentence splitting uses a simple regex on terminal punctuation followed by
+    whitespace. Each (question, context) pair is scored independently — the
+    vectoriser is fit per-context on its sentences plus the question.
+
+    Interface:
+        ``predict(questions, contexts) -> List[str]``
+    Deterministic; no neural training required.
+    """
 
     def __init__(self, ngram_range: tuple[int, int] = (1, 2)) -> None:
-        """Initialise the baseline.
-
-        Args:
-            ngram_range: n-gram range for ``TfidfVectorizer``.
-        """
-
         self.ngram_range = ngram_range
-        self._vectorizer: Any | None = None
 
     def predict(self, questions: List[str], contexts: List[str]) -> List[str]:
         """Return the best-matching sentence per (question, context) pair.
@@ -58,5 +80,29 @@ class TfidfBaseline:
             One predicted answer sentence per input pair.
         """
 
-        # TODO(stage 2): sentence-split contexts, fit TF-IDF, return argmax cosine.
-        raise NotImplementedError
+        predictions: List[str] = []
+        for question, context in zip(questions, contexts):
+            sentences = _split_sentences(context)
+            if not sentences:
+                predictions.append("")
+                continue
+            if len(sentences) == 1:
+                predictions.append(sentences[0])
+                continue
+
+            vectorizer = TfidfVectorizer(ngram_range=self.ngram_range)
+            corpus = sentences + [question]
+            tfidf_matrix = vectorizer.fit_transform(corpus)
+            question_vec = tfidf_matrix[-1]
+            sentence_vecs = tfidf_matrix[:-1]
+            scores = cosine_similarity(question_vec, sentence_vecs).flatten()
+            best_idx = int(scores.argmax())
+            predictions.append(sentences[best_idx])
+        return predictions
+
+
+def _split_sentences(text: str) -> List[str]:
+    """Split *text* into sentences on terminal punctuation boundaries."""
+
+    parts = _SENTENCE_SPLIT_RE.split(text.strip())
+    return [s.strip() for s in parts if s.strip()]

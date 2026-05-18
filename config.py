@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 # ---------------------------------------------------------------------------
 # Paths (all relative to this file's location, i.e. the repository root)
@@ -69,6 +69,36 @@ TRAIN_SUBSET_SIZE: int = 20_000
 #: HuggingFace dataset identifier for SQuAD v1.1.
 DATASET_NAME: str = "squad"
 
+#: Version tag for the processed-dataset cache.
+PROCESSED_DATA_VERSION: str = "v2"
+
+#: On-disk location of the processed (tokenised, tagged) DatasetDict.
+PROCESSED_DATA_DIR: Path = DATA_DIR / f"processed_{PROCESSED_DATA_VERSION}"
+
+#: Allowed question-type buckets for tagging and per-type F1 analysis.
+#: Order is informative only; ``"other"`` catches anything that does not
+#: match a wh-word, ``"which"``, or a yes/no auxiliary.
+QUESTION_TYPES: Tuple[str, ...] = (
+    "who",
+    "what",
+    "when",
+    "where",
+    "why",
+    "how",
+    "which",
+    "yes_no",
+    "other",
+)
+
+#: Leading auxiliaries / copulae that signal a yes/no question.
+YES_NO_LEADS: frozenset[str] = frozenset({
+    "is", "are", "was", "were",
+    "do", "does", "did",
+    "can", "could",
+    "has", "have", "had",
+    "will", "would", "should",
+})
+
 # ---------------------------------------------------------------------------
 # Experimental conditions
 # ---------------------------------------------------------------------------
@@ -84,7 +114,22 @@ FREEZE_CONFIGS: Dict[str, str] = {
 }
 
 #: LoRA ranks evaluated for the parameter-efficient fine-tuning branch.
-LORA_RANKS: List[int] = [4, 8, 16]
+#: Chosen so that higher ranks overlap the C1/C2 trainable-param range,
+#: giving multiple matched-budget comparison points with layer-freezing.
+LORA_RANKS: List[int] = [16, 32, 64, 128, 256]
+
+#: Multiplier applied as ``lora_alpha = LORA_ALPHA_MULTIPLIER * rank`` so that
+#: the effective scaling ratio ``alpha / r`` is constant across all ranks.
+LORA_ALPHA_MULTIPLIER: int = 2
+
+#: Dropout applied to LoRA adapter layers during training.
+LORA_DROPOUT: float = 0.1
+
+#: All DistilBERT linear projections targeted by LoRA adapters (attention +
+#: FFN) to maximise the parameter budget reachable at higher ranks.
+LORA_TARGET_MODULES: List[str] = [
+    "q_lin", "k_lin", "v_lin", "out_lin", "lin1", "lin2",
+]
 
 # ---------------------------------------------------------------------------
 # Device selection
@@ -152,4 +197,7 @@ def summary() -> Dict[str, object]:
         "train_subset_size": TRAIN_SUBSET_SIZE,
         "freeze_configs": FREEZE_CONFIGS,
         "lora_ranks": LORA_RANKS,
+        "lora_alpha_multiplier": LORA_ALPHA_MULTIPLIER,
+        "lora_dropout": LORA_DROPOUT,
+        "lora_target_modules": LORA_TARGET_MODULES,
     }
