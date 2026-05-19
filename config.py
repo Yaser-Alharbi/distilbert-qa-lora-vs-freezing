@@ -153,6 +153,45 @@ LORA_TARGET_MODULES: List[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Evaluation (Stage 4)
+# ---------------------------------------------------------------------------
+
+#: Number of top start/end indices retained per feature when enumerating
+#: candidate spans during HF-style n-best constrained decoding.
+N_BEST_SIZE: int = 20
+
+#: Maximum allowed answer length in tokens. Decoded spans whose
+#: ``end - start + 1`` exceeds this are rejected.
+MAX_ANSWER_LENGTH: int = 30
+
+#: Two-sided confidence level used for every Stage 4 mean estimate.
+CI_CONFIDENCE: float = 0.95
+
+#: When true, Stage 4 ignores any committed ``metrics.json`` and recomputes
+#: from ``predictions.npz``; raises a clear error if predictions are absent.
+#: Picked up from the environment so the autograder / CI can flip it without
+#: editing code; ``main.py`` also reassigns it when ``--force-eval`` is passed.
+EVAL_FORCE_RECOMPUTE: bool = bool(os.environ.get("EVAL_FORCE_RECOMPUTE"))
+
+#: Consolidated Stage 4 outputs. Both paths are whitelisted by
+#: ``.gitignore`` so the autograder can read them after a fresh checkout.
+METRICS_JSON: Path = RESULTS_DIR / "metrics.json"
+METRICS_CSV: Path = RESULTS_DIR / "metrics.csv"
+
+#: Matched-trainable-budget comparison pairs ``(lora_variant, freeze_variant)``
+#: reported in the Stage 4 summary so LoRA and layer-freezing can be compared
+#: at comparable parameter counts.
+MATCHED_BUDGET_PAIRS: List[Tuple[str, str]] = [
+    ("lora_r128", "C1"),
+    ("lora_r256", "C2"),
+]
+
+#: Bumped whenever the Stage 4 metrics computation changes in a way that
+#: should invalidate cached ``metrics.json`` files. Folded into the manifest
+#: hash alongside ``predictions.npz`` size+mtime and the relevant constants.
+METRICS_CODE_VERSION: str = "v1"
+
+# ---------------------------------------------------------------------------
 # Device selection
 # ---------------------------------------------------------------------------
 
@@ -237,4 +276,12 @@ def summary() -> Dict[str, object]:
         "lora_dropout": LORA_DROPOUT,
         "lora_target_modules": LORA_TARGET_MODULES,
         "runs_dir": str(RUNS_DIR),
+        "n_best_size": N_BEST_SIZE,
+        "max_answer_length": MAX_ANSWER_LENGTH,
+        "ci_confidence": CI_CONFIDENCE,
+        "eval_force_recompute": EVAL_FORCE_RECOMPUTE,
+        "metrics_json": str(METRICS_JSON),
+        "metrics_csv": str(METRICS_CSV),
+        "matched_budget_pairs": MATCHED_BUDGET_PAIRS,
+        "metrics_code_version": METRICS_CODE_VERSION,
     }

@@ -10,6 +10,7 @@ import transformers
 
 import config
 from src.data.loader import load_squad
+from src.evaluation.evaluate import run as run_evaluation
 from src.models.baselines import RandomSpanBaseline, TfidfBaseline
 from src.models.distilbert_qa import build_model
 from src.models.lora import apply_lora
@@ -33,6 +34,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Skip the Stage 3 training grid and reuse the committed "
             "per-(variant, seed) artefacts (meta.json + history.json). "
             "Implied when GITHUB_ACTIONS or DLNLP_FAST is set."
+        ),
+    )
+    parser.add_argument(
+        "--force-eval",
+        action="store_true",
+        help=(
+            "Force Stage 4 to recompute metrics from predictions.npz, "
+            "ignoring any committed results/metrics.json. Errors loudly "
+            "if any predictions.npz is missing. Equivalent to setting "
+            "EVAL_FORCE_RECOMPUTE=1 in the environment."
         ),
     )
     return parser.parse_args(argv)
@@ -119,6 +130,20 @@ def stage_3_train() -> None:
     log_last_run_summary()
 
 
+def stage_4_evaluate() -> None:
+    """Score every (variant, seed) plus baselines through one shared path.
+
+    Delegates to :func:`src.evaluation.evaluate.run`, which resolves into
+    one of three modes (recompute / cache hit / grader-fast load) and
+    writes :data:`config.METRICS_JSON` + :data:`config.METRICS_CSV` when
+    it actually recomputes. Idempotent and deterministic; no model load,
+    no network.
+    """
+
+    logger.info("Stage 4: post-processing predictions into metrics")
+    run_evaluation(config)
+
+
 def main():
     """
     This function must execute the complete experimental workflow developed
@@ -158,18 +183,19 @@ def main():
     presented in the report in a fully automated and reproducible manner.
     """
 
-    print("ELEC0141 DLNLP — Extractive QA on SQuAD v1.1", flush=True)
-
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         stream=sys.stdout,
     )
+    logger.info("ELEC0141 DLNLP — Extractive QA on SQuAD v1.1")
 
     args = _parse_args()
     if args.fast:
         config.FAST_MODE = True
+    if args.force_eval:
+        config.EVAL_FORCE_RECOMPUTE = True
 
     set_seed(config.SEEDS[0])
 
@@ -181,33 +207,12 @@ def main():
     logger.info("Freeze configs: %s", config.FREEZE_CONFIGS)
     logger.info("LoRA ranks: %s", config.LORA_RANKS)
 
-# 1. Dataset loading and preparation
     stage_1_data()
-
-# 2. Model construction
     stage_2_models()
-
-# 3. Training
     stage_3_train()
+    stage_4_evaluate()
 
- # 4. Evaluation
-
-    #   - Post-process logits → best valid span (constrained start≤end, max len)
-    #   - Compute EM, F1 per variant per seed; aggregate mean ± 95% CI
-    #   - Compute per-question-type F1
-    #   - Measure inference latency per variant
-    #   - Run baselines through same eval path
-    #   - Save consolidated metrics table (JSON/CSV) to config.RESULTS_DIR
-
-# 5. Analysis and visualisation
-    #   - Learning curves (loss + F1 vs epoch)
-    #   - Pareto plot: F1 vs trainable params (freezing vs LoRA)
-    #   - Per-question-type F1 heatmap
-    #   - 2D representation: t-SNE/PCA of [CLS] embeddings by question type
-    #   - Calibration plot: span confidence vs F1
-    #   - Save all figures to config.PLOTS_DIR; write final metrics summary
-
-    print("Scaffold complete. Pipeline stages to be implemented.")
+    logger.info("pipeline complete (stage 5 visualisation pending)")
 
 
 if __name__ == "__main__":
