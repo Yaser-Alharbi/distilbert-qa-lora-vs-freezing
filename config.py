@@ -28,6 +28,10 @@ SRC_DIR: Path = ROOT_DIR / "src"
 # with the rest of the runtime artefacts.
 HF_CACHE_DIR: Path = DATA_DIR / "hf_cache"
 
+#: On-disk root for Stage 3 per-(variant, seed) run outputs
+#: (predictions.npz, history.json, meta.json).
+RUNS_DIR: Path = RESULTS_DIR / "runs"
+
 # ---------------------------------------------------------------------------
 # Reproducibility
 # ---------------------------------------------------------------------------
@@ -57,6 +61,23 @@ LR: float = 3e-5
 EPOCHS: int = 2
 WEIGHT_DECAY: float = 0.01
 WARMUP_RATIO: float = 0.1
+
+#: Global gradient-norm clip applied after ``loss.backward()`` and before
+#: ``optimizer.step()``. Set to ``0`` (or any non-positive value) to disable.
+GRAD_CLIP: float = 1.0
+
+#: How often (in optimizer steps) to log a step-level training/validation
+#: loss point to ``history.json`` for the Stage 5 learning-curve plot. An
+#: extra point is always logged at the last step of each epoch so every
+#: epoch ends with an aligned data point.
+EVAL_EVERY_STEPS: int = 200
+
+#: Number of validation features used to compute the step-level
+#: ``val_loss``. A fixed subset is sampled with :data:`SEEDS[0]` and reused
+#: across every variant and seed so the curves are directly comparable.
+#: The per-epoch ``epoch_val_loss`` summary and the final
+#: ``predictions.npz`` dump still cover the full validation set.
+VAL_LOSS_SUBSET_SIZE: int = 1000
 
 # ---------------------------------------------------------------------------
 # Data
@@ -168,7 +189,7 @@ DEVICE: str = _detect_device()
 # Ensure runtime directories exist on import
 # ---------------------------------------------------------------------------
 
-for _directory in (DATA_DIR, RESULTS_DIR, PLOTS_DIR, HF_CACHE_DIR):
+for _directory in (DATA_DIR, RESULTS_DIR, PLOTS_DIR, HF_CACHE_DIR, RUNS_DIR):
     _directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -194,10 +215,14 @@ def summary() -> Dict[str, object]:
         "epochs": EPOCHS,
         "weight_decay": WEIGHT_DECAY,
         "warmup_ratio": WARMUP_RATIO,
+        "grad_clip": GRAD_CLIP,
+        "eval_every_steps": EVAL_EVERY_STEPS,
+        "val_loss_subset_size": VAL_LOSS_SUBSET_SIZE,
         "train_subset_size": TRAIN_SUBSET_SIZE,
         "freeze_configs": FREEZE_CONFIGS,
         "lora_ranks": LORA_RANKS,
         "lora_alpha_multiplier": LORA_ALPHA_MULTIPLIER,
         "lora_dropout": LORA_DROPOUT,
         "lora_target_modules": LORA_TARGET_MODULES,
+        "runs_dir": str(RUNS_DIR),
     }

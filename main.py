@@ -5,12 +5,15 @@ from __future__ import annotations
 import logging
 import sys
 
+import transformers
+
 import config
 from src.data.loader import load_squad
 from src.models.baselines import RandomSpanBaseline, TfidfBaseline
 from src.models.distilbert_qa import build_model
 from src.models.lora import apply_lora
 from src.models.param_utils import count_parameters
+from src.training.trainer import log_last_run_summary, run_all_training
 from src.utils.seed import set_seed
 
 logger = logging.getLogger("dlnlp")
@@ -79,6 +82,24 @@ def stage_2_models() -> None:
     logger.info("  TF-IDF demo:    %r", tfidf_baseline.predict(demo_q, demo_c))
 
 
+def stage_3_train() -> None:
+    """Fine-tune all 9 variants under each of ``config.SEEDS`` (27 runs).
+
+    Suppresses the noisy ``qa_outputs`` initialisation warning emitted by
+    ``transformers.AutoModelForQuestionAnswering.from_pretrained`` so the
+    27 model constructions don't flood the log, then delegates to
+    :func:`src.training.trainer.run_all_training`. Each run writes
+    ``predictions.npz``, ``history.json`` and ``meta.json`` to
+    ``config.RUNS_DIR``; subsequent calls short-circuit any run whose
+    config hash already matches on disk.
+    """
+
+    logger.info("Stage 3: training all variant x seed combinations")
+    transformers.logging.set_verbosity_error()
+    run_all_training()
+    log_last_run_summary()
+
+
 def main():
     """
     This function must execute the complete experimental workflow developed
@@ -143,11 +164,7 @@ def main():
     stage_2_models()
 
 # 3. Training
-    #   - For each variant × each seed in config.SEEDS:
-    #       - set_seed, train (EPOCHS=2, AdamW, warmup)
-    #       - log per-epoch train/val loss + EM/F1
-    #       - record wall-clock train time
-    #   - Save checkpoints + training history (JSON) to config.RESULTS_DIR
+    stage_3_train()
 
  # 4. Evaluation
 
