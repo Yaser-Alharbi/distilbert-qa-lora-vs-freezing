@@ -136,8 +136,18 @@ dmypy.json
 
 # Project runtime artefacts
 data/
-results/
 plots/
+
+# results
+results/*
+!results/metrics.json
+!results/metrics.csv
+!results/runs/
+results/runs/*
+!results/runs/*/
+results/runs/*/*
+!results/runs/*/meta.json
+!results/runs/*/history.json
 
 # HuggingFace cache
 .cache/huggingface/

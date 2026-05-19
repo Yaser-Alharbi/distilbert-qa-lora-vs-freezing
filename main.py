@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 
@@ -17,6 +18,24 @@ from src.training.trainer import log_last_run_summary, run_all_training
 from src.utils.seed import set_seed
 
 logger = logging.getLogger("dlnlp")
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI flags. Returns silently with defaults when no argv is given."""
+
+    parser = argparse.ArgumentParser(
+        description="ELEC0141 DLNLP extractive QA pipeline entry point.",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help=(
+            "Skip the Stage 3 training grid and reuse the committed "
+            "per-(variant, seed) artefacts (meta.json + history.json). "
+            "Implied when GITHUB_ACTIONS or DLNLP_FAST is set."
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def stage_1_data() -> None:
@@ -148,8 +167,13 @@ def main():
         stream=sys.stdout,
     )
 
+    args = _parse_args()
+    if args.fast:
+        config.FAST_MODE = True
+
     set_seed(config.SEEDS[0])
 
+    logger.info("run mode: %s", "fast" if config.FAST_MODE else "full")
     logger.info("Device: %s", config.DEVICE)
     logger.info("Model: %s", config.MODEL_NAME)
     logger.info("Seeds: %s", config.SEEDS)

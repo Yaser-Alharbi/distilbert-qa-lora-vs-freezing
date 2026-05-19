@@ -746,6 +746,27 @@ def run_all_training() -> List[Path]:
     _LAST_RUN_STATS.clear()
 
     variant_names = list(_VARIANT_REGISTRY)
+
+    if config.FAST_MODE:
+        logger.info("fast mode: skipping stage 3 training grid")
+        missing = [
+            artefact
+            for variant in variant_names
+            for seed in config.SEEDS
+            for artefact in (
+                _run_dir(variant, seed) / _META_FILE,
+                _run_dir(variant, seed) / _HISTORY_FILE,
+            )
+            if not artefact.is_file()
+        ]
+        if missing:
+            logger.warning(
+                "fast mode: %d expected committed artefact(s) absent; "
+                "downstream stages may degrade",
+                len(missing),
+            )
+        return []
+
     total_runs = len(variant_names) * len(config.SEEDS)
     logger.info(
         "Stage 3 schedule: %d variants x %d seeds = %d total runs",

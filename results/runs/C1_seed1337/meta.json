@@ -1,0 +1,33 @@
+{
+  "batch_size": 16,
+  "config_hash": "fac287be900d60777ac87c6fa5bdf20aa93f0a6ad4909a6a8f760f03da578315",
+  "device": "mps",
+  "doc_stride": 128,
+  "epochs": 2,
+  "eval_every_steps": 200,
+  "grad_clip": 1.0,
+  "lr": 3e-05,
+  "lr_schedule": {
+    "total_steps": 2526,
+    "type": "linear_warmup_then_linear_decay",
+    "warmup_ratio": 0.1,
+    "warmup_steps": 252
+  },
+  "max_seq_len": 384,
+  "model_name": "distilbert-base-uncased",
+  "num_train_features": 20196,
+  "num_training_steps": 2526,
+  "num_val_features": 10784,
+  "num_val_loss_subset": 1000,
+  "processed_data_version": "v2",
+  "seed": 1337,
+  "total_params": 66364418,
+  "train_subset_size": 20000,
+  "train_wall_clock_sec": 2025.7983785000106,
+  "trainable_params": 7089410,
+  "val_loss_subset_size": 1000,
+  "variant": "C1",
+  "variant_kind": "freeze",
+  "variant_spec": "C1",
+  "weight_decay": 0.01
+}
