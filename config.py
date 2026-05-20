@@ -191,6 +191,55 @@ MATCHED_BUDGET_PAIRS: List[Tuple[str, str]] = [
 #: hash alongside ``predictions.npz`` size+mtime and the relevant constants.
 METRICS_CODE_VERSION: str = "v1"
 
+#: Canonical experimental variant names in the order used throughout the
+#: report (4 freezing configs followed by the LoRA ranks). Stage 4's
+#: ``_variants()`` helper returns the same list; Stage 5 reads this
+#: constant directly so the two stages stay in lock-step.
+VARIANTS: List[str] = list(FREEZE_CONFIGS) + [f"lora_r{r}" for r in LORA_RANKS]
+
+# ---------------------------------------------------------------------------
+# Analysis & visualisation (Stage 5)
+# ---------------------------------------------------------------------------
+
+#: t-SNE perplexity for the low-dim representation plot.
+TSNE_PERPLEXITY: int = 30
+
+#: Subsample cap before fitting t-SNE so the figure stays cheap and the
+#: layout stays readable.
+TSNE_MAX_POINTS: int = 2000
+
+#: Primary 2-D projection method. ``"tsne"`` uses
+#: :class:`sklearn.manifold.TSNE`; the module falls back to PCA when t-SNE
+#: cannot be imported or the point count is too small.
+LOWDIM_METHOD: str = "tsne"
+
+#: Output DPI for raster (PNG) companions to the vector figures.
+PLOT_DPI: int = 150
+
+#: Primary plot output format. PDF is vector-friendly for the report; a
+#: PNG companion is also written for quick inspection.
+PLOT_FORMAT: str = "pdf"
+
+ANALYSIS_SUMMARY_JSON: Path = RESULTS_DIR / "analysis_summary.json"
+ERROR_CASES_JSON: Path = RESULTS_DIR / "error_cases.json"
+
+#: Number of stratified failure cases written to :data:`ERROR_CASES_JSON`.
+N_ERROR_EXAMPLES: int = 12
+
+#: Variants used as the low- and high-capacity panels of the 2-D
+#: representation analysis. The high-capacity panel should show tighter
+#: question-type clustering than the low-capacity one.
+LOWDIM_LOW_VARIANT: str = "C0"
+LOWDIM_HIGH_VARIANT: str = "lora_r256"
+
+#: Variant used for the calibration reliability diagram and number of
+#: equal-mass bins.
+CALIBRATION_VARIANT: str = "lora_r256"
+CALIBRATION_BINS: int = 10
+
+#: Variant whose predictions feed the qualitative error analysis.
+ERROR_VARIANT: str = "lora_r256"
+
 # ---------------------------------------------------------------------------
 # Device selection
 # ---------------------------------------------------------------------------
