@@ -1,26 +1,26 @@
-# ELEC0141 DLNLP Assignment — Parameter-Efficient Fine-Tuning for Extractive QA
+# Layer-Freezing vs LoRA for DistilBERT QA
 
-This repository contains the code for the ELEC0141 (Deep Learning for NLP, UCL, 2025–26) assignment. The task is extractive question answering on SQuAD v1.1 with a DistilBERT-base-uncased span-prediction head. Two parameter-efficient fine-tuning axes are ablated against the full fine-tune: progressive layer freezing (C0–C3) and LoRA adapters at ranks r ∈ {16, 32, 64, 128, 256} with α/r = 2. The hypothesis is that these PEFT methods match full fine-tuning within 2 F1 while training under 50% of the parameters, and that LoRA outperforms layer freezing at matched trainable-parameter budgets (r=128 vs C1, r=256 vs C2). RandomSpan and TF-IDF retrieval baselines anchor the lower bound.
+Matched-budget comparison of progressive layer-freezing (C0–C3) and LoRA adapters (r ∈ {16, 32, 64, 128, 256}, α/r = 2) on DistilBERT-base-uncased for extractive question answering on SQuAD v1.1. Two no-train baselines (RandomSpan, TF-IDF) anchor the lower bound. Methods, results, and analysis are written up in the report.
 
 ## Repository structure
 
 ```text
 .
-├── main.py              # single entry point: data → models → train → evaluate → analyse
-├── config.py            # centralised configuration (paths, seeds, hyperparameters)
-├── environment.yml      # conda environment specification
-├── requirements.txt     # pip dependencies (resolved by environment.yml)
+├── main.py              # entry point: data → train → evaluate → analyse → plot
+├── config.py            # paths, seeds, hyperparameters
+├── environment.yml      # conda environment (Python 3.11, PyTorch 2.5)
+├── requirements.txt     # pip dependencies
 ├── src/
 │   ├── data/            # SQuAD loading, tokenisation, question-type tagging
-│   ├── models/          # DistilBERT QA head, freezing strategies, LoRA, baselines
-│   ├── training/        # per-(variant, seed) training loop and run orchestration
-│   ├── evaluation/      # n-best span decoding, EM/F1, per-type F1, ECE, CIs
-│   ├── analysis/        # consolidated results summary
-│   ├── plotting/        # learning curves, Pareto, heatmaps, calibration, low-dim, errors
-│   └── utils/           # seeding and shared helpers
-├── data/                # SQuAD v1.1 + HF cache (created at runtime)
-├── results/             # metrics.json, metrics.csv, per-run artefacts (created at runtime)
-└── plots/               # all figures, PDF + PNG (created at runtime)
+│   ├── models/          # QA head, freezing, LoRA, baselines
+│   ├── training/        # training loop and run orchestration
+│   ├── evaluation/      # span decoding, EM/F1, per-type F1, ECE
+│   ├── analysis/        # results summary
+│   ├── plotting/        # all figures
+│   └── utils/           # seeding and helpers
+├── data/                # SQuAD + HF cache (runtime)
+├── results/             # metrics and per-run artefacts (runtime)
+└── plots/               # figures, PDF + PNG (runtime)
 ```
 
 ## Setup
@@ -28,23 +28,29 @@ This repository contains the code for the ELEC0141 (Deep Learning for NLP, UCL, 
 ```bash
 conda env create -f environment.yml
 conda activate dlnlp
+# or, without conda:
+pip install -r requirements.txt
 ```
 
-## Running the pipeline
+## Run
 
 ```bash
 python main.py
 ```
 
-`main.py` runs the full pipeline end-to-end: SQuAD v1.1 download and preprocessing, model construction for every freezing configuration and LoRA rank, training across all configurations and seeds, evaluation (EM, F1, per-question-type F1, Expected Calibration Error with 95% confidence intervals), and figure generation. All outputs are written under `results/` and `plots/`; nothing is rendered interactively.
+Runs the pipeline end-to-end: SQuAD v1.1 download and preprocessing, training of 9 configurations × 3 seeds (27 runs), evaluation with 95% Student-t CIs, and figure generation. The full grid takes approximately 15 hours on CPU; per-run artefacts in `results/runs/` are committed so evaluation and plotting reuse them when present.
 
-## Reproducibility
+## Outputs
 
-- Each configuration is trained under three fixed seeds (42, 1337, 2024) and aggregated with 95% confidence intervals.
-- Train/validation splits are the canonical SQuAD v1.1 splits; the training subset is sampled deterministically from a seeded shuffle.
-- The pipeline takes no interactive input and runs non-interactively from a single `python main.py` invocation.
-- Per the assignment brief, the pipeline is designed to run on CPU; device selection in `config.py` falls back to CPU when no accelerator is available.
+- `results/metrics.json`, `results/metrics.csv` — EM, F1, per-question-type F1, ECE with 95% CIs
+- `results/runs/<variant>_seed<n>/{history.json, predictions.npz, meta.json}` — per-run artefacts
+- `results/dataset_stats.json` — split sizes and impossible-span rate
+- `plots/*.pdf`, `plots/*.png` — every figure cited in the report
 
-## Configuration
+## Notes
 
-`config.py` is the single source of truth for paths, seeds, model identifiers, sequence and optimisation hyperparameters, the freezing and LoRA grids, evaluation settings, and analysis options. Any change to experimental conditions should be made there rather than in the modules under `src/`.
+- Seeds: 42, 1337, 2024. Metrics seed-averaged with 95% Student-t intervals.
+- Training subset: 20,000 SQuAD train examples sampled at seed 42; the full 10,570-example development set is used for evaluation.
+- Pipeline is non-interactive and CPU-only by default.
+- All experimental settings live in `config.py`.
+
