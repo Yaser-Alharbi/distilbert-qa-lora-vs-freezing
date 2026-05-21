@@ -1,167 +1,50 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/mbjnNZjl)
-# ELEC0141: Deep Learning for Natural Language Processing
+# ELEC0141 DLNLP Assignment — Parameter-Efficient Fine-Tuning for Extractive QA
 
-## Assignment
+This repository contains the code for the ELEC0141 (Deep Learning for NLP, UCL, 2025–26) assignment. The task is extractive question answering on SQuAD v1.1 with a DistilBERT-base-uncased span-prediction head. Two parameter-efficient fine-tuning axes are ablated against the full fine-tune: progressive layer freezing (C0–C3) and LoRA adapters at ranks r ∈ {16, 32, 64, 128, 256} with α/r = 2. The hypothesis is that these PEFT methods match full fine-tuning within 2 F1 while training under 50% of the parameters, and that LoRA outperforms layer freezing at matched trainable-parameter budgets (r=128 vs C1, r=256 vs C2). RandomSpan and TF-IDF retrieval baselines anchor the lower bound.
 
-## 1. General Overview
+## Repository structure
 
-This assignment requires the development of a complete machine learning system addressing a real-world research competition challenge in computer vision.
+```text
+.
+├── main.py              # single entry point: data → models → train → evaluate → analyse
+├── config.py            # centralised configuration (paths, seeds, hyperparameters)
+├── environment.yml      # conda environment specification
+├── requirements.txt     # pip dependencies (resolved by environment.yml)
+├── src/
+│   ├── data/            # SQuAD loading, tokenisation, question-type tagging
+│   ├── models/          # DistilBERT QA head, freezing strategies, LoRA, baselines
+│   ├── training/        # per-(variant, seed) training loop and run orchestration
+│   ├── evaluation/      # n-best span decoding, EM/F1, per-type F1, ECE, CIs
+│   ├── analysis/        # consolidated results summary
+│   ├── plotting/        # learning curves, Pareto, heatmaps, calibration, low-dim, errors
+│   └── utils/           # seeding and shared helpers
+├── data/                # SQuAD v1.1 + HF cache (created at runtime)
+├── results/             # metrics.json, metrics.csv, per-run artefacts (created at runtime)
+└── plots/               # all figures, PDF + PNG (created at runtime)
+```
 
-Each student must:
+## Setup
 
-- Select one public-domain competition (Kaggle or TopCoder).
-- Develop and test a machine learning solution.
-- Propose and validate a clear research hypothesis.
-- Report findings in the format of a TMLR-style conference paper.
+```bash
+conda env create -f environment.yml
+conda activate dlnlp
+```
 
-The project must demonstrate:
+## Running the pipeline
 
-- Sound model design
-- Proper training/validation/testing methodology
-- Experimental analysis and ablation studies
-- Reproducibility
-- Balanced complexity vs performance trade-offs
+```bash
+python main.py
+```
 
-The goal is not to achieve leaderboard dominance, but to demonstrate strong reasoning, engineering design, and experimental validation.
+`main.py` runs the full pipeline end-to-end: SQuAD v1.1 download and preprocessing, model construction for every freezing configuration and LoRA rank, training across all configurations and seeds, evaluation (EM, F1, per-question-type F1, Expected Calibration Error with 95% confidence intervals), and figure generation. All outputs are written under `results/` and `plots/`; nothing is rendered interactively.
 
----
+## Reproducibility
 
-## 2. Challenge Selection
+- Each configuration is trained under three fixed seeds (42, 1337, 2024) and aggregated with 95% confidence intervals.
+- Train/validation splits are the canonical SQuAD v1.1 splits; the training subset is sampled deterministically from a seeded shuffle.
+- The pipeline takes no interactive input and runs non-interactively from a single `python main.py` invocation.
+- Per the assignment brief, the pipeline is designed to run on CPU; device selection in `config.py` falls back to CPU when no accelerator is available.
 
-You must select **one competition** from:
+## Configuration
 
-- Kaggle (past 3 years recommended)  
-  https://www.kaggle.com/competitions  
-
-- TopCoder challenges  
-  https://www.topcoder.com/challenges?bucket=allPast&tab=details  
-
-### Allowed Task Types (Computer Vision Only)
-
-You must choose one of:
-
-- Image classification
-- Image segmentation
-- Image inpainting / super resolution
-- [Advanced] Conditional generation / multimodality
-- [Advanced] Image generation
-
-⚠ NLP-only competitions are not allowed.
-
-If selecting an **advanced generative project**, you must:
-
-- Justify feasibility
-- Specify dataset size
-- Specify model size
-- Estimate compute requirements
-- Use compact models or parameter-efficient fine-tuning
-- Avoid training large-scale generative models from scratch
-- Get it approved by the team beforehand
-
----
-
-## 3. Research Hypothesis
-
-Your project must be structured around a clearly defined hypothesis, such as:
-
-- Architectural comparison / Inductive bias comparison (e.g., CNNs vs ViT, Attention in Segmentation, etc.)
-- Training Strategies & Meta-Learning (e.g., transfer learning vs training from scratch, data augmentation, regularization, etc.)
-- Objective functions (e.g., auxiliary losses, various training losses, etc.)
-- Label smoothing
-- Class imbalance handling
-- Robustness to noise
-- Ensemble methods
-
-Your experiments must test this hypothesis through empirical evaluation.
-
----
-
-## 4. Constraints
-
-- No paid services.
-- Use only free/public datasets and infrastructure.
-- No external database services.
-  - Spawn a local database if needed.
-  - If remote, it must remain accessible for 2 months after submission.
-- Plain Python only.
-- No notebooks.
-- No Makefiles.
-- Deterministic execution (fixed seeds).
-- No interactive input.
-- All plots saved to disk.
-- Training must be feasible on limited compute.
-
-### AI Usage Disclosure
-
-This assignment follows UCL Category 2 GenAI usage.
-
-- Undeclared GenAI use will be penalised.
-- Reports and code not using GenAI are rewarded.
-- If used, clearly disclose usage in the report.
-
----
-
-## 5. Deliverables
-
-### Report (80%)
-
-- Max 8 pages (excluding references + optional appendix).
-- Must use TMLR template (provided on Moodle).
-- Must be submitted in PDF format.
-- File naming format:
-
-  Report_NLP_25-26_SNXXXXXXXX.pdf
-
-- Include:
-  - Student number
-  - GitHub repo URL
-- Do NOT include your name.
-
-### Code (20%)
-
-The repository must:
-
-- Produce all experimental evidence presented in the report.
-- Contain a single entry point: `main.py` located in the root directory.
-- Execute the complete experimental workflow automatically when running:
-
-  ```bash
-  python main.py
-
-- Include `environment.yml` in root.
-- Be fully reproducible.
-- Require no manual intervention.
-
-Autograding will:
-
-1. Install `environment.yml`
-2. Run `python main.py`
-
-Any manual README instructions will be ignored.
-
----
-
-## 6. Marking Scheme
-
-### REPORT — 80%
-
-| Section | Weight |
-|----------|--------|
-| Abstract | 5% |
-| Introduction | 5% |
-| Literature Review | 10% |
-| Model Design & Methodology | 20% |
-| Implementation Details | 20% |
-| Experimental Results, Analysis & Conclusion | 20% |
-
-### CODE — 20%
-
-| Component | Weight |
-|------------|--------|
-| Reproducibility | 7% |
-| Code quality & documentation | 7% |
-| Code organisation | 2.5% |
-| Git & GitHub usage | 2.5% |
-
-Performance alone does not determine marks.  
-Clarity, reasoning, experimental validation, and engineering design matter most.
+`config.py` is the single source of truth for paths, seeds, model identifiers, sequence and optimisation hyperparameters, the freezing and LoRA grids, evaluation settings, and analysis options. Any change to experimental conditions should be made there rather than in the modules under `src/`.
