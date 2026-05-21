@@ -1,0 +1,33 @@
+{
+  "batch_size": 16,
+  "config_hash": "890183be70625d31e27c5812baba653d317a0347eb1a644bfe64decf412c28f2",
+  "device": "mps",
+  "doc_stride": 128,
+  "epochs": 2,
+  "eval_every_steps": 200,
+  "grad_clip": 1.0,
+  "lr": 3e-05,
+  "lr_schedule": {
+    "total_steps": 2526,
+    "type": "linear_warmup_then_linear_decay",
+    "warmup_ratio": 0.1,
+    "warmup_steps": 252
+  },
+  "max_seq_len": 384,
+  "model_name": "distilbert-base-uncased",
+  "num_train_features": 20196,
+  "num_training_steps": 2526,
+  "num_val_features": 10784,
+  "num_val_loss_subset": 1000,
+  "processed_data_version": "v2",
+  "seed": 2024,
+  "total_params": 71674372,
+  "train_subset_size": 20000,
+  "train_wall_clock_sec": 1457.434199958021,
+  "trainable_params": 5309954,
+  "val_loss_subset_size": 1000,
+  "variant": "lora_r64",
+  "variant_kind": "lora",
+  "variant_spec": 64,
+  "weight_decay": 0.01
+}

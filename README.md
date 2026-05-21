@@ -1,166 +1,56 @@
-# ELEC0141: Deep Learning for Natural Language Processing
+# Layer-Freezing vs LoRA for DistilBERT QA
 
-## Assignment
+Matched-budget comparison of progressive layer-freezing (C0–C3) and LoRA adapters (r ∈ {16, 32, 64, 128, 256}, α/r = 2) on DistilBERT-base-uncased for extractive question answering on SQuAD v1.1. Two no-train baselines (RandomSpan, TF-IDF) anchor the lower bound. Methods, results, and analysis are written up in the report.
 
-## 1. General Overview
+## Repository structure
 
-This assignment requires the development of a complete machine learning system addressing a real-world research competition challenge in computer vision.
+```text
+.
+├── main.py              # entry point: data → train → evaluate → analyse → plot
+├── config.py            # paths, seeds, hyperparameters
+├── environment.yml      # conda environment (Python 3.11, PyTorch 2.5)
+├── requirements.txt     # pip dependencies
+├── src/
+│   ├── data/            # SQuAD loading, tokenisation, question-type tagging
+│   ├── models/          # QA head, freezing, LoRA, baselines
+│   ├── training/        # training loop and run orchestration
+│   ├── evaluation/      # span decoding, EM/F1, per-type F1, ECE
+│   ├── analysis/        # results summary
+│   ├── plotting/        # all figures
+│   └── utils/           # seeding and helpers
+├── data/                # SQuAD + HF cache (runtime)
+├── results/             # metrics and per-run artefacts (runtime)
+└── plots/               # figures, PDF + PNG (runtime)
+```
 
-Each student must:
+## Setup
 
-- Select one public-domain competition (Kaggle or TopCoder).
-- Develop and test a machine learning solution.
-- Propose and validate a clear research hypothesis.
-- Report findings in the format of a TMLR-style conference paper.
+```bash
+conda env create -f environment.yml
+conda activate dlnlp
+# or, without conda:
+pip install -r requirements.txt
+```
 
-The project must demonstrate:
+## Run
 
-- Sound model design
-- Proper training/validation/testing methodology
-- Experimental analysis and ablation studies
-- Reproducibility
-- Balanced complexity vs performance trade-offs
+```bash
+python main.py
+```
 
-The goal is not to achieve leaderboard dominance, but to demonstrate strong reasoning, engineering design, and experimental validation.
+Runs the pipeline end-to-end: SQuAD v1.1 download and preprocessing, training of 9 configurations × 3 seeds (27 runs), evaluation with 95% Student-t CIs, and figure generation. The full grid takes approximately 15 hours on CPU; per-run artefacts in `results/runs/` are committed so evaluation and plotting reuse them when present.
 
----
+## Outputs
 
-## 2. Challenge Selection
+- `results/metrics.json`, `results/metrics.csv` — EM, F1, per-question-type F1, ECE with 95% CIs
+- `results/runs/<variant>_seed<n>/{history.json, predictions.npz, meta.json}` — per-run artefacts
+- `results/dataset_stats.json` — split sizes and impossible-span rate
+- `plots/*.pdf`, `plots/*.png` — every figure cited in the report
 
-You must select **one competition** from:
+## Notes
 
-- Kaggle (past 3 years recommended)  
-  https://www.kaggle.com/competitions  
+- Seeds: 42, 1337, 2024. Metrics seed-averaged with 95% Student-t intervals.
+- Training subset: 20,000 SQuAD train examples sampled at seed 42; the full 10,570-example development set is used for evaluation.
+- Pipeline is non-interactive and CPU-only by default.
+- All experimental settings live in `config.py`.
 
-- TopCoder challenges  
-  https://www.topcoder.com/challenges?bucket=allPast&tab=details  
-
-### Allowed Task Types (Computer Vision Only)
-
-You must choose one of:
-
-- Image classification
-- Image segmentation
-- Image inpainting / super resolution
-- [Advanced] Conditional generation / multimodality
-- [Advanced] Image generation
-
-⚠ NLP-only competitions are not allowed.
-
-If selecting an **advanced generative project**, you must:
-
-- Justify feasibility
-- Specify dataset size
-- Specify model size
-- Estimate compute requirements
-- Use compact models or parameter-efficient fine-tuning
-- Avoid training large-scale generative models from scratch
-- Get it approved by the team beforehand
-
----
-
-## 3. Research Hypothesis
-
-Your project must be structured around a clearly defined hypothesis, such as:
-
-- Architectural comparison / Inductive bias comparison (e.g., CNNs vs ViT, Attention in Segmentation, etc.)
-- Training Strategies & Meta-Learning (e.g., transfer learning vs training from scratch, data augmentation, regularization, etc.)
-- Objective functions (e.g., auxiliary losses, various training losses, etc.)
-- Label smoothing
-- Class imbalance handling
-- Robustness to noise
-- Ensemble methods
-
-Your experiments must test this hypothesis through empirical evaluation.
-
----
-
-## 4. Constraints
-
-- No paid services.
-- Use only free/public datasets and infrastructure.
-- No external database services.
-  - Spawn a local database if needed.
-  - If remote, it must remain accessible for 2 months after submission.
-- Plain Python only.
-- No notebooks.
-- No Makefiles.
-- Deterministic execution (fixed seeds).
-- No interactive input.
-- All plots saved to disk.
-- Training must be feasible on limited compute.
-
-### AI Usage Disclosure
-
-This assignment follows UCL Category 2 GenAI usage.
-
-- Undeclared GenAI use will be penalised.
-- Reports and code not using GenAI are rewarded.
-- If used, clearly disclose usage in the report.
-
----
-
-## 5. Deliverables
-
-### Report (80%)
-
-- Max 8 pages (excluding references + optional appendix).
-- Must use TMLR template (provided on Moodle).
-- Must be submitted in PDF format.
-- File naming format:
-
-  Report_NLP_25-26_SNXXXXXXXX.pdf
-
-- Include:
-  - Student number
-  - GitHub repo URL
-- Do NOT include your name.
-
-### Code (20%)
-
-The repository must:
-
-- Produce all experimental evidence presented in the report.
-- Contain a single entry point: `main.py` located in the root directory.
-- Execute the complete experimental workflow automatically when running:
-
-  ```bash
-  python main.py
-
-- Include `environment.yml` in root.
-- Be fully reproducible.
-- Require no manual intervention.
-
-Autograding will:
-
-1. Install `environment.yml`
-2. Run `python main.py`
-
-Any manual README instructions will be ignored.
-
----
-
-## 6. Marking Scheme
-
-### REPORT — 80%
-
-| Section | Weight |
-|----------|--------|
-| Abstract | 5% |
-| Introduction | 5% |
-| Literature Review | 10% |
-| Model Design & Methodology | 20% |
-| Implementation Details | 20% |
-| Experimental Results, Analysis & Conclusion | 20% |
-
-### CODE — 20%
-
-| Component | Weight |
-|------------|--------|
-| Reproducibility | 7% |
-| Code quality & documentation | 7% |
-| Code organisation | 2.5% |
-| Git & GitHub usage | 2.5% |
-
-Performance alone does not determine marks.  
-Clarity, reasoning, experimental validation, and engineering design matter most.
