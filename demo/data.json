@@ -1,0 +1,482 @@
+{
+ "model_name": "distilbert-base-uncased",
+ "dataset": {
+  "name": "SQuAD",
+  "full_name": "Stanford Question Answering Dataset",
+  "train_size": 87599,
+  "validation_size": 10570
+ },
+ "seeds": [
+  42,
+  1337,
+  2024
+ ],
+ "ci_confidence": 0.95,
+ "example_seed": 42,
+ "variants": [
+  {
+   "name": "C0",
+   "kind": "freeze",
+   "spec": "head_only",
+   "trainable_params": 1538,
+   "f1": {
+    "mean": 11.562341873225966,
+    "ci_low": 11.438348332665724,
+    "ci_high": 11.686335413786209,
+    "n": 3
+   },
+   "train_wall_clock_sec": 225.51757743318254,
+   "lr": 3e-05,
+   "device": "cuda"
+  },
+  {
+   "name": "C1",
+   "kind": "freeze",
+   "spec": "top_1",
+   "trainable_params": 7089410,
+   "f1": {
+    "mean": 56.35999140820326,
+    "ci_low": 54.67380179188047,
+    "ci_high": 58.04618102452604,
+    "n": 3
+   },
+   "train_wall_clock_sec": 254.34024856658652,
+   "lr": 3e-05,
+   "device": "cuda"
+  },
+  {
+   "name": "C2",
+   "kind": "freeze",
+   "spec": "top_3",
+   "trainable_params": 21265154,
+   "f1": {
+    "mean": 82.07547707659188,
+    "ci_low": 81.11164746314563,
+    "ci_high": 83.03930669003813,
+    "n": 3
+   },
+   "train_wall_clock_sec": 344.04863660006475,
+   "lr": 3e-05,
+   "device": "cuda"
+  },
+  {
+   "name": "C3",
+   "kind": "freeze",
+   "spec": "full",
+   "trainable_params": 66364418,
+   "f1": {
+    "mean": 85.31030010512353,
+    "ci_low": 84.88922070513738,
+    "ci_high": 85.73137950510969,
+    "n": 3
+   },
+   "train_wall_clock_sec": 558.8115338000158,
+   "lr": 3e-05,
+   "device": "cuda"
+  },
+  {
+   "name": "lora_r16",
+   "kind": "lora",
+   "spec": 16,
+   "trainable_params": 1328642,
+   "f1": {
+    "mean": 85.18702758878673,
+    "ci_low": 84.74814995218031,
+    "ci_high": 85.62590522539315,
+    "n": 3
+   },
+   "train_wall_clock_sec": 633.0185318666821,
+   "lr": 0.0003,
+   "device": "cuda"
+  },
+  {
+   "name": "lora_r32",
+   "kind": "lora",
+   "spec": 32,
+   "trainable_params": 2655746,
+   "f1": {
+    "mean": 85.83642690005045,
+    "ci_low": 85.26376763314182,
+    "ci_high": 86.40908616695909,
+    "n": 3
+   },
+   "train_wall_clock_sec": 635.7296247999184,
+   "lr": 0.0003,
+   "device": "cuda"
+  },
+  {
+   "name": "lora_r64",
+   "kind": "lora",
+   "spec": 64,
+   "trainable_params": 5309954,
+   "f1": {
+    "mean": 85.95546213354157,
+    "ci_low": 85.59799595830833,
+    "ci_high": 86.31292830877481,
+    "n": 3
+   },
+   "train_wall_clock_sec": 610.958406633387,
+   "lr": 0.0003,
+   "device": "cuda"
+  },
+  {
+   "name": "lora_r128",
+   "kind": "lora",
+   "spec": 128,
+   "trainable_params": 10618370,
+   "f1": {
+    "mean": 86.2100401917229,
+    "ci_low": 85.9213114364419,
+    "ci_high": 86.4987689470039,
+    "n": 3
+   },
+   "train_wall_clock_sec": 679.7293816666739,
+   "lr": 0.0003,
+   "device": "cuda"
+  },
+  {
+   "name": "lora_r256",
+   "kind": "lora",
+   "spec": 256,
+   "trainable_params": 21235202,
+   "f1": {
+    "mean": 85.26437311882376,
+    "ci_low": 84.9784409075162,
+    "ci_high": 85.55030533013131,
+    "n": 3
+   },
+   "train_wall_clock_sec": 792.562261299851,
+   "lr": 0.0003,
+   "device": "cuda"
+  }
+ ],
+ "baselines": [
+  {
+   "name": "random_span",
+   "f1": 7.8606903602772435
+  },
+  {
+   "name": "tfidf",
+   "f1": 18.942754193879278
+  }
+ ],
+ "matched_budget": [
+  {
+   "lora": "lora_r128",
+   "freeze": "C1",
+   "delta_f1": 29.85004878351964
+  },
+  {
+   "lora": "lora_r256",
+   "freeze": "C2",
+   "delta_f1": 3.1888960422318746
+  }
+ ],
+ "examples": [
+  {
+   "id": "5725b56589a1e219009abd23",
+   "question": "What space station supported three manned missions in 1973-1974?",
+   "question_type": "what",
+   "context": "Apollo ran from 1961 to 1972, and was supported by the two-man Gemini program which ran concurrently with it from 1962 to 1966. Gemini missions developed some of the space travel techniques that were necessary for the success of the Apollo missions. Apollo used Saturn family rockets as launch vehicles. Apollo/Saturn vehicles were also used for an Apollo Applications Program, which consisted of Skylab, a space station that supported three manned missions in 1973–74, and the Apollo–Soyuz Test Project, a joint Earth orbit mission with the Soviet Union in 1975.",
+   "golds": [
+    "Skylab",
+    "Skylab",
+    "Skylab",
+    "Skylab",
+    "Skylab"
+   ],
+   "gold_start": 397,
+   "answers": {
+    "C0": {
+     "text": "1972",
+     "start": 24,
+     "correct": false
+    },
+    "C1": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "C2": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "C3": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "lora_r16": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "lora_r32": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "lora_r64": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "lora_r128": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    },
+    "lora_r256": {
+     "text": "Skylab",
+     "start": 397,
+     "correct": true
+    }
+   },
+   "note": ""
+  },
+  {
+   "id": "56beb86b3aeaaa14008c92bf",
+   "question": "How old was John Elway when he played in Super Bowl XXXIII?",
+   "question_type": "how",
+   "context": "Peyton Manning became the first quarterback ever to lead two different teams to multiple Super Bowls. He is also the oldest quarterback ever to play in a Super Bowl at age 39. The past record was held by John Elway, who led the Broncos to victory in Super Bowl XXXIII at age 38 and is currently Denver's Executive Vice President of Football Operations and General Manager.",
+   "golds": [
+    "38",
+    "38",
+    "38",
+    "38"
+   ],
+   "gold_start": 275,
+   "answers": {
+    "C0": {
+     "text": "Peyton Manning became the first quarterback ever to lead two different teams to multiple Super Bowls. He is also the oldest quarterback ever to play in a Super Bowl",
+     "start": 0,
+     "correct": false
+    },
+    "C1": {
+     "text": "39",
+     "start": 172,
+     "correct": false
+    },
+    "C2": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "C3": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "lora_r16": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "lora_r32": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "lora_r64": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "lora_r128": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    },
+    "lora_r256": {
+     "text": "38",
+     "start": 275,
+     "correct": true
+    }
+   },
+   "note": ""
+  },
+  {
+   "id": "5726a4a9708984140094ccb7",
+   "question": "Which of Temüjin's brothers took up the role of male leader of the family?",
+   "question_type": "which",
+   "context": "For the next several years, Hoelun and her children lived in poverty, surviving primarily on wild fruits and ox carcasses, marmots, and other small game killed by Temüjin and his brothers. Begter, Temujin's older half-brother, began to exercise the power of the eldest male in the family and eventually Temujin's mother Hoelun (not Begter's mother) would have to accept him as her husband if and when he became an adult. Temujin's resentment erupted during one hunting excursion that Temüjin and his brother Khasar killed their half-brother Begter.",
+   "golds": [
+    "Begter",
+    "Begter",
+    "Begter"
+   ],
+   "gold_start": 189,
+   "answers": {
+    "C0": {
+     "text": "Temüjin",
+     "start": 163,
+     "correct": false
+    },
+    "C1": {
+     "text": "Khasar",
+     "start": 508,
+     "correct": false
+    },
+    "C2": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "C3": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "lora_r16": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "lora_r32": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "lora_r64": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "lora_r128": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    },
+    "lora_r256": {
+     "text": "Begter",
+     "start": 189,
+     "correct": true
+    }
+   },
+   "note": ""
+  },
+  {
+   "id": "5730aef38ab72b1400f9c685",
+   "question": "When did Germany found their first settlement?",
+   "question_type": "when",
+   "context": "However, in 1883–84 Germany began to build a colonial empire in Africa and the South Pacific, before losing interest in imperialism. Historians have debated exactly why Germany made this sudden and short-lived move.[verification needed] Bismarck was aware that public opinion had started to demand colonies for reasons of German prestige. He was influenced by Hamburg merchants and traders, his neighbors at Friedrichsruh. The establishment of the German colonial empire proceeded smoothly, starting with German New Guinea in 1884.",
+   "golds": [
+    "1884",
+    "1884",
+    "1884",
+    "1884",
+    "1884"
+   ],
+   "gold_start": 526,
+   "answers": {
+    "C0": {
+     "text": "1883",
+     "start": 12,
+     "correct": false
+    },
+    "C1": {
+     "text": "1883–84",
+     "start": 12,
+     "correct": false
+    },
+    "C2": {
+     "text": "1883–84",
+     "start": 12,
+     "correct": false
+    },
+    "C3": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    },
+    "lora_r16": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    },
+    "lora_r32": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    },
+    "lora_r64": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    },
+    "lora_r128": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    },
+    "lora_r256": {
+     "text": "1884",
+     "start": 526,
+     "correct": true
+    }
+   },
+   "note": ""
+  },
+  {
+   "id": "56f7f15aa6d7ea1400e172ef",
+   "question": "What did Luther's degree in 1509 concern?",
+   "question_type": "what",
+   "context": "In 1507, he was ordained to the priesthood, and in 1508, von Staupitz, first dean of the newly founded University of Wittenberg, sent for Luther, to teach theology. He received a bachelor's degree in Biblical studies on 9 March 1508, and another bachelor's degree in the Sentences by Peter Lombard in 1509.",
+   "golds": [
+    "Sentences by Peter Lombard",
+    "Sentences",
+    "Sentences by Peter Lombard"
+   ],
+   "gold_start": 271,
+   "answers": {
+    "C0": {
+     "text": "1507",
+     "start": 3,
+     "correct": false
+    },
+    "C1": {
+     "text": "Biblical studies",
+     "start": 200,
+     "correct": false
+    },
+    "C2": {
+     "text": "Biblical studies",
+     "start": 200,
+     "correct": false
+    },
+    "C3": {
+     "text": "the Sentences",
+     "start": 267,
+     "correct": true
+    },
+    "lora_r16": {
+     "text": "Biblical studies",
+     "start": 200,
+     "correct": false
+    },
+    "lora_r32": {
+     "text": "Biblical studies on 9 March 1508, and another bachelor's degree in the Sentences",
+     "start": 200,
+     "correct": false
+    },
+    "lora_r64": {
+     "text": "Sentences",
+     "start": 271,
+     "correct": true
+    },
+    "lora_r128": {
+     "text": "the Sentences",
+     "start": 267,
+     "correct": true
+    },
+    "lora_r256": {
+     "text": "bachelor's degree in the Sentences",
+     "start": 246,
+     "correct": false
+    }
+   },
+   "note": "The passage names two degrees a year apart in one sentence; rank-16 LoRA, like top-1 and top-3 freezing, returns the 1508 degree instead of the 1509 one."
+  }
+ ]
+}

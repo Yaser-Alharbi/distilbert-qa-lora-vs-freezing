@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>LoRA vs Layer Freezing</title>
+<meta name="description" content="Low-rank adapters (LoRA) versus layer freezing for extractive question answering on DistilBERT and the SQuAD dataset.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Source+Sans+3:wght@400;600&family=Source+Code+Pro:wght@400&display=swap">
+<style>
+:root{
+  --bg:#FFFFFF; --ink:#14171A; --ink-2:#3D444C; --rule:#D9DCE0; --muted-data:#B8BDC3;
+  --accent:#1F3A5F;
+  --freeze:#A3471B; --lora:#2D7A5C; --shade:#F3F4F6; --gold:#D3DAE3; --panel:#F6F7F9;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --sans:'Source Sans 3','Segoe UI',system-ui,sans-serif;
+  --mono:'Source Code Pro',ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.page{max-width:1200px;margin:0 auto;padding:0 24px 64px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+code,.code{font-family:var(--mono);font-size:14px}
+
+/* link bar */
+.links{display:flex;justify-content:flex-end;gap:20px;padding:12px 0 0;font-size:14px}
+.links .who{color:var(--ink-2)}
+
+/* header */
+header{padding:16px 0 20px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:48px;align-items:end}
+header > div{min-width:0}
+.open-method{font:600 15px var(--sans);color:var(--accent);background:var(--bg);border:1.5px solid var(--accent);border-radius:2px;padding:8px 16px;cursor:pointer;white-space:nowrap}
+.open-method:hover{background:var(--accent);color:var(--bg)}
+.kicker{color:var(--accent);font-size:14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+h1{font:600 40px/1.15 var(--serif);margin:8px 0 0;max-width:900px;letter-spacing:-.01em;text-wrap:balance}
+.purpose{font-size:18px;color:var(--ink);margin-top:12px;max-width:1000px}
+.lead{font-size:16px;color:var(--ink-2);margin-top:6px;max-width:1000px}
+.lead b{color:var(--ink);font-weight:600}
+
+/* body */
+.body{display:grid;grid-template-columns:minmax(0,65fr) minmax(0,35fr);gap:48px;padding-top:24px}
+.fig + .fig{margin-top:40px}
+figure{margin:0}
+figcaption{font-size:15px;color:var(--ink-2);margin-top:12px}
+figcaption b{color:var(--ink);font-weight:600}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--sans);font-size:13px;fill:var(--ink-2)}
+
+/* budget slider */
+.budget{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center;margin-top:8px;padding-left:56px;padding-right:128px}
+.budget label{font-size:14px;color:var(--ink-2);white-space:nowrap}
+.budget output{color:var(--ink);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--ink);margin:0}
+
+/* answers */
+.q{font-size:18px;font-weight:600}
+.fig-intro{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:12px}
+.example{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:0 20px 16px}
+.example .src span{white-space:nowrap}
+.example .src{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink-2)}
+.example .src b{color:var(--ink);font-weight:600}
+.lbl{font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.04em;margin-top:14px}
+.q{margin-top:2px}
+.passage{font-size:15px;line-height:1.75;color:var(--ink-2);margin-top:2px}
+/* gold = fill; freezing and LoRA = 3px bars under the text, stacked when both pick the same words */
+.passage .g,.passage .f,.passage .l{color:var(--ink);padding-bottom:4px;background-repeat:no-repeat}
+.passage .g{background-color:var(--gold)}
+.passage .f{background-image:linear-gradient(var(--freeze),var(--freeze));background-size:100% 3px;background-position:0 100%}
+.passage .l{background-image:linear-gradient(var(--lora),var(--lora));background-size:100% 3px;background-position:0 100%}
+.passage .f.l{background-image:linear-gradient(var(--freeze),var(--freeze)),linear-gradient(var(--lora),var(--lora));background-size:100% 3px,100% 3px;background-position:0 calc(100% - 4px),0 100%;padding-bottom:8px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+.ans{margin-top:16px}
+.ans th{white-space:nowrap;font-size:13px;font-weight:600;color:var(--ink-2);text-align:left;padding:0 12px 6px 0;border-bottom:1.5px solid var(--ink)}
+.ans td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule);vertical-align:baseline}
+.ans td:first-child{white-space:nowrap;width:1%}
+.ans td:last-child{color:var(--ink-2);white-space:nowrap;width:1%;text-align:right;padding-right:0}
+.mk{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:baseline}
+.mk.fz{background:var(--freeze)}
+.mk.lr{background:var(--lora);border-radius:50%}
+.mk.gd{background:var(--gold);border:1px solid var(--muted-data)}
+.chips{display:flex;gap:6px}
+.chips button{font:14px var(--sans);color:var(--ink-2);background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:3px 10px;cursor:pointer;white-space:nowrap}
+.chips button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);font-weight:600}
+
+/* method dialog */
+dialog{width:min(760px,calc(100vw - 48px));max-height:calc(100vh - 64px);border:1px solid var(--rule);border-radius:2px;padding:0;color:var(--ink);background:var(--bg)}
+dialog::backdrop{background:rgba(20,23,26,.4)}
+.dlg-h{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:24px 32px 12px;border-bottom:1.5px solid var(--ink);margin:0 32px;padding-left:0;padding-right:0}
+.dlg-h h2{font:600 28px/1.2 var(--serif);margin:0;outline:none}
+.close{font:600 15px var(--sans);color:var(--accent);background:none;border:0;cursor:pointer;padding:4px 0}
+.notes{padding:16px 32px 32px;display:grid;gap:12px;font-size:16px;color:var(--ink-2)}
+.notes h3{font:600 15px var(--sans);color:var(--ink);margin:12px 0 0}
+.notes p b{color:var(--ink);font-weight:600}
+.notes ul{margin:0;padding-left:18px;display:grid;gap:6px}
+
+/* column */
+aside{min-width:0}
+.list-h{display:grid;grid-template-columns:18px minmax(0,1fr) 72px 48px;gap:8px;font-size:13px;font-weight:600;color:var(--ink-2);padding-bottom:6px;border-bottom:1.5px solid var(--ink)}
+.list-h span:nth-child(n+3){text-align:right}
+.cond{display:grid;grid-template-columns:18px minmax(0,1fr) 72px 48px;gap:8px;align-items:baseline;width:100%;font:15px var(--sans);color:var(--ink);background:none;border:0;border-bottom:1px solid var(--rule);padding:4px 0;text-align:left;cursor:pointer}
+.cond .sq{width:10px;height:10px;border:1.5px solid var(--ink);align-self:center}
+.cond[aria-pressed="true"] .sq{background:var(--accent);border-color:var(--accent)}
+.cond .nm small{color:var(--ink-2);font-size:13px;margin-left:6px}
+.cond .pr,.cond .sc{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.cond.over{color:var(--muted-data)}
+.cond.over .nm small,.cond.over .pr,.cond.over .sc{color:var(--muted-data)}
+.cond.over .sq{border-color:var(--muted-data)}
+.cond:hover .nm{text-decoration:underline}
+.list-gap{height:8px}
+
+.head{margin-top:20px}
+.big{font:400 88px/1 var(--serif);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.head .what{margin-top:8px;font-size:15px;color:var(--ink-2)}
+.head .what b{color:var(--ink);font-weight:600}
+.delta{margin-top:12px;font-size:15px;display:grid;gap:4px}
+.delta .d{font-weight:600;font-variant-numeric:tabular-nums}
+
+.layers{margin-top:32px;border-top:1.5px solid var(--ink);padding-top:8px;display:grid;gap:6px;font-size:15px}
+.layers h2{font:600 13px var(--sans);color:var(--ink-2);margin:0 0 2px}
+.layers label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.layers input{accent-color:var(--ink);margin:0}
+.sw{display:inline-block;width:18px;height:10px}
+
+footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:16px;font-size:14px;color:var(--ink-2)}
+.err{color:var(--freeze);font-size:15px;padding:24px 0}
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav class="links" aria-label="Author and links">
+  <span class="who">Yaser Alharbi</span>
+  <a href="https://github.com/Yaser-Alharbi/distilbert-qa-lora-vs-freezing">Source</a>
+  <a href="https://rajpurkar.github.io/SQuAD-explorer/">Dataset</a>
+</nav>
+
+<header>
+  <div>
+    <div class="kicker">Fine-tuning efficiency</div>
+    <h1>Low-rank adapters (LoRA) versus layer freezing for extractive question answering</h1>
+    <p class="purpose">A fine-tuning efficiency study: which method keeps a pretrained language model accurate on a new task while training the fewest of its weights, LoRA or layer freezing?</p>
+    <p class="lead" id="lead">DistilBERT is adapted to the Stanford Question Answering Dataset (SQuAD) either by retraining its top layers or by training low-rank adapters (LoRA) on every layer.</p>
+  </div>
+  <button class="open-method" id="open-method" aria-haspopup="dialog">Method and limitations</button>
+</header>
+
+<div id="app" class="body">
+  <main>
+    <figure class="fig">
+      <svg id="chart" viewBox="0 0 760 400" role="img" aria-label="F1 against trainable parameters for layer freezing and LoRA variants"></svg>
+      <div class="budget">
+        <label for="budget">Trainable-parameter budget <output id="budget-out" for="budget"></output></label>
+        <input type="range" id="budget" min="0" max="8" step="1" value="1" aria-describedby="cap1">
+      </div>
+      <figcaption id="cap1"></figcaption>
+    </figure>
+
+    <figure class="fig">
+      <p class="fig-intro">What the scores mean on real questions: the answer each method picks at the same budget.</p>
+      <div class="example">
+        <div class="src"><span id="src"></span><div class="chips" id="chips" role="group" aria-label="Example question"></div></div>
+        <div class="lbl">Question</div>
+        <p class="q" id="q"></p>
+        <div class="lbl">Passage</div>
+        <p class="passage" id="passage"></p>
+      </div>
+      <table class="ans"><thead><tr><th>Source</th><th>Answer</th><th>Gold match</th></tr></thead><tbody id="ans"></tbody></table>
+      <figcaption id="cap2"></figcaption>
+    </figure>
+
+
+  </main>
+
+  <aside>
+    <div class="list-h"><span></span><span>Variant</span><span>Trainable</span><span>F1</span></div>
+    <div id="conds" role="group" aria-label="Variant"></div>
+
+    <div class="head" aria-live="polite">
+      <div class="big" id="big"></div>
+      <p class="what" id="what"></p>
+      <div class="delta" id="delta"></div>
+    </div>
+
+    <div class="layers">
+      <h2>Layers</h2>
+      <label><input type="checkbox" id="ly-gold" checked><span class="sw" style="background:var(--gold);border:1px solid var(--muted-data)"></span>Gold answer span</label>
+      <label><input type="checkbox" id="ly-f" checked><span class="sw" style="border-bottom:3px solid var(--freeze);height:8px"></span>Freezing answer span</label>
+      <label><input type="checkbox" id="ly-l" checked><span class="sw" style="border-bottom:3px solid var(--lora);height:8px"></span>LoRA answer span</label>
+      <label><input type="checkbox" id="ly-base" checked><span class="sw" style="border-top:1.5px dashed var(--ink-2);height:0"></span>No-training baselines</label>
+    </div>
+  </aside>
+</div>
+
+<dialog id="method" aria-labelledby="method-title">
+  <div class="dlg-h"><h2 id="method-title" tabindex="-1" autofocus>Method and limitations</h2><button class="close" id="close-method">Close</button></div>
+  <section class="notes">
+    <h3>Method</h3>
+    <p><b>Problem.</b> Fine-tuning every weight of a pretrained model for each new task trains and stores a full copy of it; cheaper schemes that train only part of the model often lose accuracy.</p>
+    <p><b>Idea.</b> Layer freezing locks the lower layers and retrains only the top few, so the lower layers never adapt to the task. LoRA locks every pretrained weight and learns a small low-rank correction, whose size is set by the rank, added to each linear projection in every layer, so all layers adapt while few numbers are trained.</p>
+    <p><b>Terms.</b> Extractive QA: the answer is a span copied from the given passage. Trainable parameters: the weights updated during training. F1: word overlap between the predicted and the correct answer, from 0 to 100.</p>
+    <h3>Limitations</h3>
+    <ul id="limits"></ul>
+  </section>
+</dialog>
+
+<footer>Data: Stanford Question Answering Dataset (SQuAD), Rajpurkar et al., Stanford NLP, CC BY-SA 4.0. Base model: distilbert-base-uncased, Sanh et al., Hugging Face.</footer>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const MINUS = '−';
+const f1 = v => v.toFixed(1);
+const signed = v => (v >= 0 ? '+' : MINUS) + Math.abs(v).toFixed(1);
+const fmtP = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n.toLocaleString('en-US');
+const pct = (n, base) => { const v = 100 * n / base; return (v < 0.1 ? v.toPrecision(2) : v.toFixed(1)) + '%'; };
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const desc = v => v.kind === 'lora' ? 'rank ' + v.spec
+  : ({head_only:'head only', full:'all layers'}[v.spec] ||
+     v.spec.replace(/^top_(\d+)$/, (m, k) => 'top ' + k + (k === '1' ? ' layer' : ' layers')));
+const BASE_NAME = {random_span:'Random span', tfidf:'TF-IDF'};
+
+let D, V, byName, steps, BASE;
+const state = {sel: 'lora_r16', step: 0, q: 0};
+
+function bestWithin(kind, budget) {
+  const c = V.filter(v => v.kind === kind && v.trainable_params <= budget);
+  return c.length ? c.reduce((a, b) => b.f1.mean > a.f1.mean ? b : a) : null;
+}
+function pair() {
+  const s = byName[state.sel];
+  const other = bestWithin(s.kind === 'lora' ? 'freeze' : 'lora', s.trainable_params);
+  return s.kind === 'lora' ? {f: other, l: s} : {f: s, l: other};
+}
+
+/* Figure 1: F1 vs trainable parameters */
+function drawChart() {
+  const W = 760, H = 400, m = {l: 56, r: 128, t: 16, b: 52};
+  const x0 = 3, x1 = 8;
+  const X = p => m.l + (Math.log10(p) - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => H - m.b - v / 100 * (H - m.t - m.b);
+  const budget = steps[state.step].trainable_params;
+  const {f, l} = pair();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {ink: css('--ink'), ink2: css('--ink-2'), rule: css('--rule'), muted: css('--muted-data'),
+             freeze: css('--freeze'), lora: css('--lora'), shade: css('--shade'), bg: css('--bg')};
+  let s = '';
+  const xb = X(budget);
+  s += `<rect x="${xb}" y="${m.t}" width="${W - m.r - xb}" height="${H - m.t - m.b}" fill="${C.shade}"/>`;
+  for (const v of [0, 20, 40, 60, 80, 100]) {
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.rule}" stroke-width="${v ? 0.75 : 1}"/>`;
+    s += `<text x="${m.l - 10}" y="${Y(v) + 4}" text-anchor="end" class="num">${v}</text>`;
+  }
+  for (const p of [1e3, 1e4, 1e5, 1e6, 1e7, 1e8]) {
+    s += `<line x1="${X(p)}" x2="${X(p)}" y1="${H - m.b}" y2="${H - m.b + 5}" stroke="${C.ink2}"/>`;
+    s += `<text x="${X(p)}" y="${H - m.b + 20}" text-anchor="middle">${{1e3:'1K',1e4:'10K',1e5:'100K',1e6:'1M',1e7:'10M',1e8:'100M'}[p]}</text>`;
+  }
+  s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">Trainable parameters (log scale)</text>`;
+  s += `<text transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">F1</text>`;
+  s += `<line x1="${xb}" x2="${xb}" y1="${m.t}" y2="${H - m.b}" stroke="${C.ink}" stroke-width="1.25"/>`;
+  s += `<text x="${xb + 6}" y="${m.t + 14}" style="fill:${C.ink2}">over budget</text>`;
+  if ($('#ly-base').checked) {
+    for (const b of BASE) {
+      s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(b.f1)}" y2="${Y(b.f1)}" stroke="${C.ink2}" stroke-width="1" stroke-dasharray="4 4"/>`;
+      s += `<text x="${W - m.r + 8}" y="${Y(b.f1) + 4}">${BASE_NAME[b.name] || b.name} ${f1(b.f1)}</text>`;
+    }
+  }
+  for (const kind of ['freeze', 'lora']) {
+    const pts = V.filter(v => v.kind === kind).sort((a, b) => a.trainable_params - b.trainable_params);
+    const col = kind === 'freeze' ? C.freeze : C.lora;
+    s += `<polyline fill="none" stroke="${col}" stroke-width="1.25" stroke-opacity=".45" points="${pts.map(v => X(v.trainable_params) + ',' + Y(v.f1.mean)).join(' ')}"/>`;
+    for (const v of pts) {
+      const x = X(v.trainable_params), y = Y(v.f1.mean);
+      const inb = v.trainable_params <= budget;
+      const c = inb ? col : C.muted;
+      s += `<line x1="${x}" x2="${x}" y1="${Y(v.f1.ci_low)}" y2="${Y(v.f1.ci_high)}" stroke="${c}" stroke-width="1.5"/>`;
+      const hi = v === f || v === l;
+      const r = hi ? 6.5 : 4.5;
+      const stroke = hi ? `stroke="${C.ink}" stroke-width="1.5"` : `stroke="${C.bg}" stroke-width="1"`;
+      s += kind === 'freeze'
+        ? `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="${c}" ${stroke}/>`
+        : `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" ${stroke}/>`;
+      if (hi) {
+        const dy = kind === 'lora' ? -12 : 20;
+        s += `<text x="${x - 10}" y="${y + dy}" text-anchor="end" style="fill:${C.ink};font-weight:600">${v.name}</text>`;
+      }
+    }
+  }
+  s += `<text x="${X(byName.lora_r32.trainable_params)}" y="${Y(byName.lora_r16.f1.mean) + 26}" text-anchor="middle" style="fill:${C.lora}">LoRA</text>`;
+  s += `<text x="${X(byName.C1.trainable_params) + 10}" y="${Y(byName.C1.f1.mean) + 20}" style="fill:${C.freeze}">Layer freezing</text>`;
+  $('#chart').innerHTML = s;
+}
+
+/* Figure 2: answers to the selected question */
+function drawAnswers() {
+  const ex = D.examples[state.q];
+  const {f, l} = pair();
+  const ctx = ex.context;
+  const marks = [];
+  if ($('#ly-gold').checked && ex.gold_start >= 0) marks.push({s: ex.gold_start, e: ex.gold_start + ex.golds[0].length, c: 'g'});
+  if ($('#ly-f').checked && f && ex.answers[f.name].start >= 0) {
+    const a = ex.answers[f.name]; marks.push({s: a.start, e: a.start + a.text.length, c: 'f'});
+  }
+  if ($('#ly-l').checked && l && ex.answers[l.name].start >= 0) {
+    const a = ex.answers[l.name]; marks.push({s: a.start, e: a.start + a.text.length, c: 'l'});
+  }
+  const cuts = [...new Set([0, ctx.length, ...marks.flatMap(k => [k.s, k.e])])].sort((a, b) => a - b);
+  let h = '';
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1];
+    const cls = marks.filter(k => k.s <= a && k.e >= b).map(k => k.c).join(' ');
+    const t = esc(ctx.slice(a, b));
+    h += cls ? `<span class="${cls}">${t}</span>` : t;
+  }
+  $('#src').innerHTML = `<b>Example ${state.q + 1} of ${D.examples.length}</b> from the ${D.dataset.name} dev set`;
+  $('#q').textContent = ex.question;
+  $('#passage').innerHTML = h;
+  const golds = [...new Set(ex.golds)];
+  const row = (mk, label, text, res) => `<tr><td><span class="mk ${mk}"></span>${label}</td><td>${text}</td><td>${res}</td></tr>`;
+  let rows = row('gd', 'Gold', golds.map(esc).join(' / '), '');
+  const ansRow = (v, mk, method) => {
+    if (!v) return row(mk, method, `<span style="color:var(--ink-2)">No ${method === 'LoRA' ? method : method.toLowerCase()} variant fits this budget</span>`, '');
+    const a = ex.answers[v.name];
+    return row(mk, `<span class="code">${v.name}</span>`, a.text ? esc(a.text) : '<i>empty</i>', a.correct ? 'match' : 'no match');
+  };
+  rows += ansRow(f, 'fz', 'Freezing') + ansRow(l, 'lr', 'LoRA');
+  $('#ans').innerHTML = rows;
+  [...$('#chips').children].forEach((b, i) => b.setAttribute('aria-pressed', i === state.q));
+  const n = D.examples.length;
+  $('#cap2').innerHTML = `<b>Figure 2. Question ${state.q + 1} of ${n} (${ex.question_type.replace('_', '/')}).</b> ` +
+    `Answers from the seed-${D.example_seed} run of the selected variant and the best variant of the other method within its trainable-parameter budget. ` +
+    `In the passage, grey fill marks a gold answer, an orange bar under the text the freezing answer and a green bar the LoRA answer. ` +
+    `A match means the answer's words equal a gold answer's after SQuAD normalisation.` +
+    (ex.note ? ` <b>Limitation.</b> ${esc(ex.note)}` : '');
+}
+
+/* Column: conditions, headline, deltas */
+function drawColumn() {
+  const budget = steps[state.step].trainable_params;
+  document.querySelectorAll('.cond').forEach(b => {
+    const v = byName[b.dataset.n];
+    b.setAttribute('aria-pressed', v.name === state.sel);
+    b.classList.toggle('over', v.trainable_params > budget);
+  });
+  const s = byName[state.sel], full = byName.C3, base = full.trainable_params;
+  const n = s.f1.n, ci = Math.round(D.ci_confidence * 100);
+  $('#big').textContent = f1(s.f1.mean);
+  $('#what').innerHTML = `<b>F1</b> of <span class="code">${s.name}</span> (${desc(s)}) on the ${D.dataset.validation_size.toLocaleString('en-US')}-question ${D.dataset.name} dev set. ` +
+    `Mean of ${n} seeds, ${ci}% CI ${f1(s.f1.ci_low)} to ${f1(s.f1.ci_high)}. ` +
+    `${fmtP(s.trainable_params)} trainable parameters, ${pct(s.trainable_params, base)} of the ${fmtP(base)} in the model.`;
+  const mb = D.matched_budget.find(p => p.lora === 'lora_r256') || D.matched_budget[D.matched_budget.length - 1];
+  const ml = byName[mb.lora], mf = byName[mb.freeze];
+  const d1 = s === full
+    ? `<div><span class="d">Δ —</span> full fine-tuning is the reference.</div>`
+    : `<div><span class="d">Δ ${signed(s.f1.mean - full.f1.mean)}</span> vs <span class="code">C3</span>, full fine-tuning (${fmtP(base)} trainable).</div>`;
+  const d2 = `<div><span class="d">Δ ${signed(mb.delta_f1)}</span> for <span class="code">${ml.name}</span> vs <span class="code">${mf.name}</span> at a matched budget (${fmtP(ml.trainable_params)} vs ${fmtP(mf.trainable_params)} trainable).</div>`;
+  $('#delta').innerHTML = d1 + d2;
+  $('#budget-out').textContent = fmtP(budget);
+}
+
+function render() { drawChart(); drawAnswers(); drawColumn(); }
+
+function selectVariant(name) {
+  state.sel = name;
+  state.step = steps.findIndex(v => v.name === name);
+  $('#budget').value = state.step;
+  render();
+}
+function setStep(i) {
+  state.step = i;
+  const b = steps[i].trainable_params;
+  const pick = bestWithin('lora', b) || bestWithin('freeze', b);
+  state.sel = pick.name;
+  render();
+}
+
+function build() {
+  V = D.variants;
+  byName = Object.fromEntries(V.map(v => [v.name, v]));
+  steps = [...V].sort((a, b) => a.trainable_params - b.trainable_params);
+  BASE = D.baselines;
+  const r16 = byName.lora_r16, full = byName.C3;
+  const c1 = byName.C1, c2 = byName.C2;
+  $('#lead').innerHTML = `<b>Result:</b> rank-16 LoRA adapters train ${pct(r16.trainable_params, full.trainable_params)} of DistilBERT's weights and reach ${f1(r16.f1.mean)} F1 on the ${D.dataset.full_name} (${D.dataset.name}), against ${f1(full.f1.mean)} when every weight is trained; layer freezing reaches ${f1(c1.f1.mean)} retraining the top layer (${pct(c1.trainable_params, full.trainable_params)}) and ${f1(c2.f1.mean)} retraining the top three (${pct(c2.trainable_params, full.trainable_params)}).`;
+
+  const order = V; // config order: freezing, then LoRA ranks
+  let h = '';
+  order.forEach((v, i) => {
+    if (i && order[i - 1].kind !== v.kind) h += '<div class="list-gap"></div>';
+    h += `<button class="cond" data-n="${v.name}" aria-pressed="false"><span class="sq"></span>` +
+         `<span class="nm"><span class="code">${v.name}</span><small>${desc(v)}</small></span>` +
+         `<span class="pr">${fmtP(v.trainable_params)}</span><span class="sc">${f1(v.f1.mean)}</span></button>`;
+  });
+  $('#conds').innerHTML = h;
+  document.querySelectorAll('.cond').forEach(b => b.addEventListener('click', () => selectVariant(b.dataset.n)));
+
+  $('#chips').innerHTML = D.examples.map((e, i) => `<button aria-pressed="false">Question ${i + 1}</button>`).join('');
+  [...$('#chips').children].forEach((b, i) => b.addEventListener('click', () => { state.q = i; drawAnswers(); }));
+
+  $('#budget').max = steps.length - 1;
+  $('#budget').addEventListener('input', e => setStep(+e.target.value));
+  ['#ly-gold', '#ly-f', '#ly-l'].forEach(id => $(id).addEventListener('change', drawAnswers));
+  $('#ly-base').addEventListener('change', drawChart);
+
+  const n = full.f1.n, ci = Math.round(D.ci_confidence * 100);
+  $('#cap1').innerHTML = `<b>Figure 1. Answer F1 against trainable parameters.</b> ` +
+    `Squares are layer-freezing variants (<span class="code">C0</span> to <span class="code">C3</span>), circles are LoRA variants (ranks ${V.filter(v => v.kind === 'lora').map(v => v.spec).join(', ')}). ` +
+    `Each mark is the mean of ${n} seeds and its whisker the ${ci}% CI, scored on the ${D.dataset.validation_size.toLocaleString('en-US')}-question ${D.dataset.name} dev set (the official test set is not public). ` +
+    `The grey region lies over the budget set by the slider; outlined marks are the selected variant and the best variant of the other method within its budget. ` +
+    `Dashed lines are no-training baselines.`;
+
+  const lr = k => V.find(v => v.kind === k).lr;
+  const fmtLr = x => x.toExponential(0).replace('e-', 'e−');
+  const anyGpu = V.every(v => v.device === r16.device);
+  $('#limits').innerHTML = [
+    `<b>Different learning rates.</b> LoRA variants were trained at ${fmtLr(lr('lora'))} and freezing variants at ${fmtLr(lr('freeze'))}, because adapters start from zero and need larger steps to converge in the same number of updates. Freezing variants used the standard full fine-tuning rate and were not re-tuned per depth, to keep the grid's compute fixed.`,
+    `<b>Fewer trained weights, not less training time.</b> <span class="code">lora_r16</span> took ${Math.round(r16.train_wall_clock_sec)} s per run against ${Math.round(full.train_wall_clock_sec)} s for <span class="code">C3</span>${anyGpu ? ' on the same GPU' : ''} (mean of ${n} seeds), since every step still runs the full frozen model forward and backward. The saving is in what is trained and stored.`,
+    `<b>One model and one dataset.</b> All results are for ${D.model_name} on the ${D.dataset.name} dataset; other models or tasks may rank the methods differently.`,
+  ].map(t => `<li><p>${t}</p></li>`).join('');
+
+  selectVariant(state.sel);
+}
+
+const dlg = $('#method');
+$('#open-method').addEventListener('click', () => dlg.showModal());
+$('#close-method').addEventListener('click', () => dlg.close());
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+fetch('data.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => { D = d; build(); })
+  .catch(() => { $('#app').innerHTML = '<p class="err">The results file data.json could not be loaded. Serve this folder over HTTP (for example <span class="code">python -m http.server</span>) rather than opening the file directly.</p>'; });
+})();
+</script>
+</body>
+</html>
