@@ -32,6 +32,9 @@ HF_CACHE_DIR: Path = DATA_DIR / "hf_cache"
 #: (predictions.npz, history.json, meta.json).
 RUNS_DIR: Path = RESULTS_DIR / "runs"
 
+#: Log file mirroring the console output of ``main.py`` (appended per run).
+LOG_FILE: Path = RESULTS_DIR / "run.log"
+
 # ---------------------------------------------------------------------------
 # Reproducibility
 # ---------------------------------------------------------------------------
@@ -58,6 +61,12 @@ DOC_STRIDE: int = 128
 
 BATCH_SIZE: int = 16
 LR: float = 3e-5
+
+#: Peak learning rate for LoRA variants. Adapters start at zero and need a
+#: roughly 10x higher rate than full fine-tuning to converge in the same
+#: number of steps.
+LORA_LR: float = 3e-4
+
 EPOCHS: int = 2
 WEIGHT_DECAY: float = 0.01
 WARMUP_RATIO: float = 0.1
@@ -65,6 +74,10 @@ WARMUP_RATIO: float = 0.1
 #: Global gradient-norm clip applied after ``loss.backward()`` and before
 #: ``optimizer.step()``. Set to ``0`` (or any non-positive value) to disable.
 GRAD_CLIP: float = 1.0
+
+#: Mixed-precision training (bf16 where supported, else fp16 with loss
+#: scaling). Only takes effect on CUDA; CPU and MPS always run in fp32.
+USE_AMP: bool = True
 
 #: How often (in optimizer steps) to log a step-level training/validation
 #: loss point to ``history.json`` for the Stage 5 learning-curve plot. An
@@ -83,15 +96,15 @@ VAL_LOSS_SUBSET_SIZE: int = 1000
 # Data
 # ---------------------------------------------------------------------------
 
-#: Number of SQuAD v1.1 training examples to retain. The full validation
-#: split is always used for evaluation.
-TRAIN_SUBSET_SIZE: int = 20_000
+#: Number of SQuAD v1.1 training examples to retain (87,599 = the full
+#: training split). The full validation split is always used for evaluation.
+TRAIN_SUBSET_SIZE: int = 87_599
 
 #: HuggingFace dataset identifier for SQuAD v1.1.
 DATASET_NAME: str = "squad"
 
 #: Version tag for the processed-dataset cache.
-PROCESSED_DATA_VERSION: str = "v2"
+PROCESSED_DATA_VERSION: str = "v3"
 
 #: On-disk location of the processed (tokenised, tagged) DatasetDict.
 PROCESSED_DATA_DIR: Path = DATA_DIR / f"processed_{PROCESSED_DATA_VERSION}"
@@ -312,10 +325,12 @@ def summary() -> Dict[str, object]:
         "doc_stride": DOC_STRIDE,
         "batch_size": BATCH_SIZE,
         "lr": LR,
+        "lora_lr": LORA_LR,
         "epochs": EPOCHS,
         "weight_decay": WEIGHT_DECAY,
         "warmup_ratio": WARMUP_RATIO,
         "grad_clip": GRAD_CLIP,
+        "use_amp": USE_AMP,
         "eval_every_steps": EVAL_EVERY_STEPS,
         "val_loss_subset_size": VAL_LOSS_SUBSET_SIZE,
         "train_subset_size": TRAIN_SUBSET_SIZE,

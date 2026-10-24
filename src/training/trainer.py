@@ -68,18 +68,21 @@ Public API
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
+import math
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 from datasets import Dataset, DatasetDict
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 from transformers import get_linear_schedule_with_warmup
 
 import config
@@ -177,6 +180,27 @@ def _run_dir(variant_name: str, seed: int) -> Path:
     return config.RUNS_DIR / f"{variant_name}_seed{seed}"
 
 
+def _variant_lr(variant_name: str) -> float:
+    """Return the peak learning rate for a variant (LoRA uses its own)."""
+
+    kind, _ = _VARIANT_REGISTRY[variant_name]
+    return config.LORA_LR if kind == "lora" else config.LR
+
+
+def _amp_dtype(device: torch.device) -> Optional[torch.dtype]:
+    """Return the autocast dtype for ``device``, or ``None`` to run in fp32."""
+
+    if not config.USE_AMP or device.type != "cuda":
+        return None
+    return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
+
+def _autocast(device: torch.device, amp_dtype: Optional[torch.dtype]) -> Any:
+    if amp_dtype is None:
+        return contextlib.nullcontext()
+    return torch.autocast(device_type=device.type, dtype=amp_dtype)
+
+
 def _config_hash(variant_name: str, seed: int) -> str:
     """Return a stable SHA-256 over every config field that affects training."""
 
@@ -189,10 +213,11 @@ def _config_hash(variant_name: str, seed: int) -> str:
         "processed_data_version": config.PROCESSED_DATA_VERSION,
         "batch_size": config.BATCH_SIZE,
         "epochs": config.EPOCHS,
-        "lr": config.LR,
+        "lr": _variant_lr(variant_name),
         "weight_decay": config.WEIGHT_DECAY,
         "warmup_ratio": config.WARMUP_RATIO,
         "grad_clip": config.GRAD_CLIP,
+        "use_amp": config.USE_AMP,
         "eval_every_steps": config.EVAL_EVERY_STEPS,
         "val_loss_subset_size": config.VAL_LOSS_SUBSET_SIZE,
         "variant_name": variant_name,
@@ -345,10 +370,10 @@ def _group_parameters(model: torch.nn.Module) -> List[Dict[str, Any]]:
 
 
 def _build_optimizer_scheduler(
-    model: torch.nn.Module, num_training_steps: int
+    model: torch.nn.Module, num_training_steps: int, lr: float
 ) -> Tuple[torch.optim.Optimizer, Any, int]:
     warmup_steps = int(config.WARMUP_RATIO * num_training_steps)
-    optimizer = torch.optim.AdamW(_group_parameters(model), lr=config.LR)
+    optimizer = torch.optim.AdamW(_group_parameters(model), lr=lr)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=warmup_steps,
@@ -375,6 +400,9 @@ def _train_one_epoch(
     step_log: Dict[str, List[Any]],
     val_loss_loader: DataLoader,
     eval_every_steps: int,
+    amp_dtype: Optional[torch.dtype],
+    scaler: torch.amp.GradScaler,
+    progress: tqdm,
 ) -> Tuple[float, int]:
     """Run one training epoch, evaluating on a fixed val subset at intervals.
 
@@ -393,6 +421,9 @@ def _train_one_epoch(
             ``"val_loss"``; one entry is appended per logged point.
         val_loss_loader: DataLoader over the fixed val-loss subset.
         eval_every_steps: Step interval between subset-loss evaluations.
+        amp_dtype: Autocast dtype, or ``None`` for fp32.
+        scaler: Loss scaler; a no-op unless ``amp_dtype`` is fp16.
+        progress: Step-level progress bar, advanced once per optimizer step.
 
     Returns:
         ``(epoch_train_loss, ending_global_step)`` — the running-mean
@@ -409,24 +440,21 @@ def _train_one_epoch(
     global_step = starting_global_step
     n_batches = len(loader)
 
-    progress = tqdm(
-        loader,
-        desc=f"epoch {epoch}/{total_epochs} train",
-        leave=False,
-        dynamic_ncols=True,
-    )
-    for i, batch in enumerate(progress):
+    for i, batch in enumerate(loader):
         batch = _to_device(batch, device)
-        outputs = model(**batch)
-        loss = outputs.loss
+        with _autocast(device, amp_dtype):
+            outputs = model(**batch)
+        loss = outputs.loss.float()
 
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        scaler.scale(loss).backward()
         if grad_clip is not None:
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(
                 (p for p in model.parameters() if p.requires_grad), grad_clip
             )
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         scheduler.step()
 
         global_step += 1
@@ -442,7 +470,7 @@ def _train_one_epoch(
         is_last_step = i == n_batches - 1
         if is_eval_step or is_last_step:
             running_train_loss = interval_loss_sum / max(interval_examples, 1)
-            val_loss = _validate(model, val_loss_loader, device)
+            val_loss = _validate(model, val_loss_loader, device, amp_dtype)
             model.train()
             step_log["global_step"].append(int(global_step))
             step_log["train_loss"].append(float(running_train_loss))
@@ -450,21 +478,30 @@ def _train_one_epoch(
             interval_loss_sum = 0.0
             interval_examples = 0
 
-        progress.set_postfix(loss=f"{epoch_loss_sum / max(epoch_examples, 1):.4f}")
+        progress.set_postfix(
+            epoch=f"{epoch}/{total_epochs}",
+            loss=f"{epoch_loss_sum / max(epoch_examples, 1):.4f}",
+            refresh=False,
+        )
+        progress.update(1)
 
     return epoch_loss_sum / max(epoch_examples, 1), global_step
 
 
 @torch.no_grad()
 def _validate(
-    model: torch.nn.Module, loader: DataLoader, device: torch.device
+    model: torch.nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    amp_dtype: Optional[torch.dtype] = None,
 ) -> float:
     model.eval()
     total_loss = 0.0
     seen_examples = 0
     for batch in loader:
         batch = _to_device(batch, device)
-        outputs = model(**batch)
+        with _autocast(device, amp_dtype):
+            outputs = model(**batch)
         batch_size = batch["input_ids"].size(0)
         total_loss += float(outputs.loss.item()) * batch_size
         seen_examples += batch_size
@@ -473,7 +510,10 @@ def _validate(
 
 @torch.no_grad()
 def _collect_logits(
-    model: torch.nn.Module, loader: DataLoader, device: torch.device
+    model: torch.nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    amp_dtype: Optional[torch.dtype] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     model.eval()
     starts: List[np.ndarray] = []
@@ -483,7 +523,8 @@ def _collect_logits(
             "input_ids": batch["input_ids"].to(device),
             "attention_mask": batch["attention_mask"].to(device),
         }
-        outputs = model(**inputs)
+        with _autocast(device, amp_dtype):
+            outputs = model(**inputs)
         starts.append(outputs.start_logits.detach().to(torch.float32).cpu().numpy())
         ends.append(outputs.end_logits.detach().to(torch.float32).cpu().numpy())
     return np.concatenate(starts, axis=0), np.concatenate(ends, axis=0)
@@ -582,7 +623,9 @@ def _build_history_meta(
     }
 
 
-def train_variant(variant_name: str, seed: int) -> Path:
+def train_variant(
+    variant_name: str, seed: int, progress: Optional[tqdm] = None
+) -> Path:
     """Train one (variant, seed) combination or short-circuit on cache hit.
 
     Args:
@@ -591,6 +634,8 @@ def train_variant(variant_name: str, seed: int) -> Path:
         seed: Global seed used for Python/NumPy/PyTorch (incl. DataLoader
             shuffle) and applied *before* model construction so that the
             randomly initialised QA head and LoRA matrices are reproducible.
+        progress: Shared progress bar to advance per optimizer step. When
+            ``None``, a bar covering just this run is created.
 
     Returns:
         The run directory containing ``predictions.npz``, ``history.json``
@@ -633,15 +678,19 @@ def train_variant(variant_name: str, seed: int) -> Path:
     )
     val_loss_loader = _build_val_loss_loader(_val_loss_subset())
     num_training_steps = config.EPOCHS * len(train_loader)
+    lr = _variant_lr(variant_name)
     optimizer, scheduler, warmup_steps = _build_optimizer_scheduler(
-        model, num_training_steps
+        model, num_training_steps, lr
     )
+    amp_dtype = _amp_dtype(device)
+    scaler = torch.amp.GradScaler(device.type, enabled=amp_dtype == torch.float16)
 
     logger.info(
         "  %-12s seed=%-4d  training start: trainable=%d/%d  steps=%d  "
-        "warmup=%d  eval_every=%d  val_subset=%d  device=%s",
+        "warmup=%d  eval_every=%d  val_subset=%d  device=%s  lr=%g  amp=%s",
         variant_name, seed, trainable, total, num_training_steps, warmup_steps,
         int(config.EVAL_EVERY_STEPS), len(val_loss_loader.dataset), device,
+        lr, amp_dtype,
     )
 
     history: Dict[str, Any] = {
@@ -652,6 +701,15 @@ def train_variant(variant_name: str, seed: int) -> Path:
         "epoch_boundaries": [],
     }
 
+    own_progress = progress is None
+    if progress is None:
+        progress = tqdm(
+            total=num_training_steps,
+            desc=f"{variant_name} seed={seed}",
+            unit="step",
+            dynamic_ncols=True,
+        )
+
     global_step = 0
     t_train_start = time.perf_counter()
     for epoch in range(1, config.EPOCHS + 1):
@@ -659,9 +717,10 @@ def train_variant(variant_name: str, seed: int) -> Path:
         train_loss, global_step = _train_one_epoch(
             model, train_loader, optimizer, scheduler, device,
             epoch, config.EPOCHS, global_step, history["steps"],
-            val_loss_loader, int(config.EVAL_EVERY_STEPS),
+            val_loss_loader, int(config.EVAL_EVERY_STEPS), amp_dtype, scaler,
+            progress,
         )
-        val_loss = _validate(model, val_loader, device)
+        val_loss = _validate(model, val_loader, device, amp_dtype)
         epoch_dt = time.perf_counter() - epoch_t0
         history["epoch_train_loss"].append(train_loss)
         history["epoch_val_loss"].append(val_loss)
@@ -674,10 +733,12 @@ def train_variant(variant_name: str, seed: int) -> Path:
             variant_name, seed, epoch, config.EPOCHS, train_loss, val_loss, epoch_dt,
         )
     train_wall_clock_sec = time.perf_counter() - t_train_start
+    if own_progress:
+        progress.close()
 
     history["meta"] = _build_history_meta(history["epoch_boundaries"], config.EPOCHS)
 
-    start_logits, end_logits = _collect_logits(model, val_loader, device)
+    start_logits, end_logits = _collect_logits(model, val_loader, device, amp_dtype)
     _save_predictions(
         run_dir,
         start_logits=start_logits,
@@ -702,7 +763,8 @@ def train_variant(variant_name: str, seed: int) -> Path:
         "num_training_steps": int(num_training_steps),
         "epochs": int(config.EPOCHS),
         "batch_size": int(config.BATCH_SIZE),
-        "lr": float(config.LR),
+        "lr": float(lr),
+        "amp_dtype": str(amp_dtype) if amp_dtype is not None else None,
         "weight_decay": float(config.WEIGHT_DECAY),
         "grad_clip": float(config.GRAD_CLIP),
         "eval_every_steps": int(config.EVAL_EVERY_STEPS),
@@ -773,15 +835,32 @@ def run_all_training() -> List[Path]:
         len(variant_names), len(config.SEEDS), total_runs,
     )
 
+    schedule = [
+        (variant, seed, _is_cached(_run_dir(variant, seed), _config_hash(variant, seed)))
+        for variant in variant_names
+        for seed in config.SEEDS
+    ]
+    n_pending = sum(1 for _, _, cached in schedule if not cached)
+    steps_per_run = 0
+    if n_pending:
+        num_train_features = len(_load_processed()["train"])
+        steps_per_run = config.EPOCHS * math.ceil(num_train_features / config.BATCH_SIZE)
+
+    # One bar for the whole grid; ``smoothing=0`` averages the rate over all
+    # elapsed time (eval pauses included), which keeps the ETA stable.
     run_dirs: List[Path] = []
-    for variant_name in variant_names:
-        for seed in config.SEEDS:
-            run_dir = _run_dir(variant_name, seed)
-            cfg_hash = _config_hash(variant_name, seed)
-            was_cached = _is_cached(run_dir, cfg_hash)
-            train_variant(variant_name, seed)
+    with logging_redirect_tqdm(), tqdm(
+        total=n_pending * steps_per_run,
+        unit="step",
+        smoothing=0,
+        dynamic_ncols=True,
+    ) as progress:
+        for i, (variant_name, seed, was_cached) in enumerate(schedule, start=1):
+            progress.set_description(
+                f"Stage 3/5 | run {i}/{total_runs} {variant_name} seed={seed}"
+            )
+            run_dirs.append(train_variant(variant_name, seed, progress))
             _LAST_RUN_STATS.append((variant_name, int(seed), was_cached))
-            run_dirs.append(run_dir)
 
     return run_dirs
 

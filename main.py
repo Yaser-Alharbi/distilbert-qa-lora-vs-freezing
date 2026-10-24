@@ -69,7 +69,7 @@ def stage_1_data() -> None:
     stats summary) and logs the resulting split / feature sizes.
     """
 
-    logger.info("Stage 1: loading and preparing SQuAD v1.1")
+    logger.info("Stage 1/5: loading and preparing SQuAD v1.1")
     processed = load_squad()
     for split_name, split in processed.items():
         logger.info("  %-22s %d rows", split_name, len(split))
@@ -83,7 +83,7 @@ def stage_2_models() -> None:
     construction and parameter accounting.
     """
 
-    logger.info("Stage 2: model construction and parameter accounting")
+    logger.info("Stage 2/5: model construction and parameter accounting")
 
     logger.info("--- Freezing variants ---")
     for tag, strategy in config.FREEZE_CONFIGS.items():
@@ -136,7 +136,7 @@ def stage_3_train() -> None:
     config hash already matches on disk.
     """
 
-    logger.info("Stage 3: training all variant x seed combinations")
+    logger.info("Stage 3/5: training all variant x seed combinations")
     transformers.logging.set_verbosity_error()
     run_all_training()
     log_last_run_summary()
@@ -152,7 +152,7 @@ def stage_4_evaluate() -> None:
     no network.
     """
 
-    logger.info("Stage 4: post-processing predictions into metrics")
+    logger.info("Stage 4/5: post-processing predictions into metrics")
     run_evaluation(config)
 
 
@@ -178,7 +178,7 @@ def stage_5_analysis() -> None:
     they are absent we log once and skip cleanly.
     """
 
-    logger.info("Stage 5: analysis & visualisation")
+    logger.info("Stage 5/5: analysis & visualisation")
     if not config.METRICS_JSON.is_file():
         logger.error(
             "stage 5: %s missing — skipping analysis", config.METRICS_JSON
@@ -262,7 +262,10 @@ def main():
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        stream=sys.stdout,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(config.LOG_FILE, encoding="utf-8"),
+        ],
     )
     logger.info("ELEC0141 DLNLP — Extractive QA on SQuAD v1.1")
 
