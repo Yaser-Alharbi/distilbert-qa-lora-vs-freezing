@@ -2,7 +2,7 @@
 
 LoRA on 2% of DistilBERT's weights matches full fine-tuning on SQuAD question answering (85.2 vs 85.3 F1), across 27 seeded runs.
 
-**[Interactive results page](https://yaser-alharbi.github.io/distilbert-qa-lora-vs-freezing/)** · Python 3.11, PyTorch 2.5, Hugging Face `transformers` + `peft` · [MIT licence](LICENSE)
+**[Interactive results page](https://yaser-alharbi.github.io/lora-vs-freeze/)** · Python 3.11, PyTorch 2.5, Hugging Face `transformers` + `peft` · [MIT licence](LICENSE)
 
 ## The question
 
