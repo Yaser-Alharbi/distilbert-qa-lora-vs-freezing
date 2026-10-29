@@ -14,6 +14,15 @@ from typing import List
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _split_sentences(text: str) -> List[str]:
+    """Split *text* into sentences on terminal punctuation boundaries."""
+
+    parts = _SENTENCE_SPLIT_RE.split(text.strip())
+    return [s.strip() for s in parts if s.strip()]
+
 
 class RandomSpanBaseline:
     """Predicts a uniformly random contiguous word span from the context.
@@ -49,9 +58,6 @@ class RandomSpanBaseline:
             start = rng.randint(0, len(words) - span_len)
             predictions.append(" ".join(words[start : start + span_len]))
         return predictions
-
-
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 class TfidfBaseline:
@@ -99,10 +105,3 @@ class TfidfBaseline:
             best_idx = int(scores.argmax())
             predictions.append(sentences[best_idx])
         return predictions
-
-
-def _split_sentences(text: str) -> List[str]:
-    """Split *text* into sentences on terminal punctuation boundaries."""
-
-    parts = _SENTENCE_SPLIT_RE.split(text.strip())
-    return [s.strip() for s in parts if s.strip()]

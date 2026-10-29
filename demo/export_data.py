@@ -111,6 +111,10 @@ def _decode_all() -> Dict[str, Any]:
     from src.data.loader import (  # pylint: disable=import-outside-toplevel
         validation_example_index,
     )
+    from src.evaluation.baselines import (  # pylint: disable=import-outside-toplevel
+        RandomSpanBaseline,
+        TfidfBaseline,
+    )
     from src.evaluation.postprocess import (  # pylint: disable=import-outside-toplevel
         decode_predictions,
     )
@@ -121,6 +125,10 @@ def _decode_all() -> Dict[str, Any]:
         npz_path = config.RUNS_DIR / f"{name}_seed{EXAMPLE_SEED}" / "predictions.npz"
         predictions[name], _ = decode_predictions(npz_path, contexts)
         logger.info("decoded %s", npz_path)
+    predictions["random_span"] = RandomSpanBaseline(
+        seed=EXAMPLE_SEED
+    ).predict_for_examples(contexts)
+    predictions["tfidf"] = TfidfBaseline().predict_for_examples(questions, contexts)
     return {
         "ids": ordered_ids,
         "contexts": contexts,
@@ -146,7 +154,7 @@ def _example_rows(decoded: Mapping[str, Any]) -> List[Dict[str, Any]]:
         context = decoded["contexts"][example_id]
         golds = decoded["golds"][example_id]
         answers = {}
-        for name in config.VARIANTS:
+        for name in decoded["predictions"]:
             text = decoded["predictions"][name].get(example_id, "")
             answers[name] = {
                 "text": text,

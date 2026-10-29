@@ -30,13 +30,6 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
 
     try:
-        import numpy as np
-
-        np.random.seed(seed)
-    except ImportError:
-        logger.debug("numpy not installed; skipping")
-
-    try:
         import torch
 
         torch.manual_seed(seed)
@@ -53,3 +46,10 @@ def set_seed(seed: int) -> None:
         torch.backends.cudnn.benchmark = False
     except ImportError:
         logger.debug("torch not installed; skipping")
+
+    try:
+        import numpy as np
+
+        np.random.seed(seed)
+    except ImportError:
+        logger.debug("numpy not installed; skipping")

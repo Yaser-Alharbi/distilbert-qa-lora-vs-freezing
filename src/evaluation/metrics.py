@@ -14,50 +14,6 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _PUNCT_TABLE = str.maketrans("", "", string.punctuation)
 
 
-def _normalize(text: str) -> str:
-    """Normalise an answer string for SQuAD v1.1 scoring.
-
-    Lower-case, strip punctuation, remove articles (``a|an|the``) as whole
-    words, and collapse runs of whitespace to a single space.
-    """
-
-    lowered = text.lower()
-    no_punct = lowered.translate(_PUNCT_TABLE)
-    no_articles = _ARTICLES_RE.sub(" ", no_punct)
-    return _WHITESPACE_RE.sub(" ", no_articles).strip()
-
-
-def _f1_one(pred: str, gold: str) -> float:
-    pred_tokens = _normalize(pred).split()
-    gold_tokens = _normalize(gold).split()
-    if not pred_tokens and not gold_tokens:
-        return 1.0
-    if not pred_tokens or not gold_tokens:
-        return 0.0
-    common = Counter(pred_tokens) & Counter(gold_tokens)
-    num_same = sum(common.values())
-    if num_same == 0:
-        return 0.0
-    precision = num_same / len(pred_tokens)
-    recall = num_same / len(gold_tokens)
-    return 2.0 * precision * recall / (precision + recall)
-
-
-def _em_one(pred: str, gold: str) -> float:
-    return 1.0 if _normalize(pred) == _normalize(gold) else 0.0
-
-
-def _example_em_f1(pred: str, golds: Sequence[str]) -> tuple[float, float]:
-    """Per-example EM and F1: the max over gold answers."""
-
-    if not golds:
-        empty_match = 1.0 if _normalize(pred) == "" else 0.0
-        return empty_match, empty_match
-    em = max(_em_one(pred, g) for g in golds)
-    f1 = max(_f1_one(pred, g) for g in golds)
-    return em, f1
-
-
 def compute_em_f1(
     predictions: List[str], references: List[List[str]]
 ) -> Dict[str, float]:
@@ -140,3 +96,47 @@ def per_question_type_f1(
             "n": n,
         }
     return result
+
+
+def _normalize(text: str) -> str:
+    """Normalise an answer string for SQuAD v1.1 scoring.
+
+    Lower-case, strip punctuation, remove articles (``a|an|the``) as whole
+    words, and collapse runs of whitespace to a single space.
+    """
+
+    lowered = text.lower()
+    no_punct = lowered.translate(_PUNCT_TABLE)
+    no_articles = _ARTICLES_RE.sub(" ", no_punct)
+    return _WHITESPACE_RE.sub(" ", no_articles).strip()
+
+
+def _f1_one(pred: str, gold: str) -> float:
+    pred_tokens = _normalize(pred).split()
+    gold_tokens = _normalize(gold).split()
+    if not pred_tokens and not gold_tokens:
+        return 1.0
+    if not pred_tokens or not gold_tokens:
+        return 0.0
+    common = Counter(pred_tokens) & Counter(gold_tokens)
+    num_same = sum(common.values())
+    if num_same == 0:
+        return 0.0
+    precision = num_same / len(pred_tokens)
+    recall = num_same / len(gold_tokens)
+    return 2.0 * precision * recall / (precision + recall)
+
+
+def _em_one(pred: str, gold: str) -> float:
+    return 1.0 if _normalize(pred) == _normalize(gold) else 0.0
+
+
+def _example_em_f1(pred: str, golds: Sequence[str]) -> tuple[float, float]:
+    """Per-example EM and F1: the max over gold answers."""
+
+    if not golds:
+        empty_match = 1.0 if _normalize(pred) == "" else 0.0
+        return empty_match, empty_match
+    em = max(_em_one(pred, g) for g in golds)
+    f1 = max(_f1_one(pred, g) for g in golds)
+    return em, f1

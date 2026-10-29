@@ -231,6 +231,16 @@
      "text": "Skylab",
      "start": 397,
      "correct": true
+    },
+    "random_span": {
+     "text": "the space travel techniques",
+     "start": 162,
+     "correct": false
+    },
+    "tfidf": {
+     "text": "Apollo/Saturn vehicles were also used for an Apollo Applications Program, which consisted of Skylab, a space station that supported three manned missions in 1973–74, and the Apollo–Soyuz Test Project, a joint Earth orbit mission with the Soviet Union in 1975.",
+     "start": 304,
+     "correct": false
     }
    },
    "note": ""
@@ -292,6 +302,16 @@
      "text": "38",
      "start": 275,
      "correct": true
+    },
+    "random_span": {
+     "text": "the Broncos to victory in Super Bowl XXXIII",
+     "start": 224,
+     "correct": false
+    },
+    "tfidf": {
+     "text": "The past record was held by John Elway, who led the Broncos to victory in Super Bowl XXXIII at age 38 and is currently Denver's Executive Vice President of Football Operations and General Manager.",
+     "start": 176,
+     "correct": false
     }
    },
    "note": ""
@@ -352,6 +372,16 @@
      "text": "Begter",
      "start": 189,
      "correct": true
+    },
+    "random_span": {
+     "text": "years, Hoelun and her children lived in",
+     "start": 21,
+     "correct": false
+    },
+    "tfidf": {
+     "text": "Begter, Temujin's older half-brother, began to exercise the power of the eldest male in the family and eventually Temujin's mother Hoelun (not Begter's mother) would have to accept him as her husband if and when he became an adult.",
+     "start": 189,
+     "correct": false
     }
    },
    "note": ""
@@ -414,6 +444,16 @@
      "text": "1884",
      "start": 526,
      "correct": true
+    },
+    "random_span": {
+     "text": "However, in 1883–84 Germany began to build a colonial empire in Africa and the South Pacific, before losing interest in imperialism. Historians have debated exactly why Germany made this sudden",
+     "start": 0,
+     "correct": false
+    },
+    "tfidf": {
+     "text": "However, in 1883–84 Germany began to build a colonial empire in Africa and the South Pacific, before losing interest in imperialism.",
+     "start": 0,
+     "correct": false
     }
    },
    "note": ""
@@ -473,6 +513,16 @@
     "lora_r256": {
      "text": "bachelor's degree in the Sentences",
      "start": 246,
+     "correct": false
+    },
+    "random_span": {
+     "text": "von Staupitz, first dean of the newly founded University of Wittenberg, sent for Luther, to teach theology. He",
+     "start": 57,
+     "correct": false
+    },
+    "tfidf": {
+     "text": "He received a bachelor's degree in Biblical studies on 9 March 1508, and another bachelor's degree in the Sentences by Peter Lombard in 1509.",
+     "start": 165,
      "correct": false
     }
    },

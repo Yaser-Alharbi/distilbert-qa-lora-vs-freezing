@@ -75,14 +75,18 @@ input[type=range]{width:100%;accent-color:var(--ink);margin:0}
 .passage .l{background-image:linear-gradient(var(--lora),var(--lora));background-size:100% 3px;background-position:0 100%}
 .passage .f.l{background-image:linear-gradient(var(--freeze),var(--freeze)),linear-gradient(var(--lora),var(--lora));background-size:100% 3px,100% 3px;background-position:0 calc(100% - 4px),0 100%;padding-bottom:8px}
 table{border-collapse:collapse;width:100%;font-size:15px}
-.ans{margin-top:16px}
+.ans{margin-top:16px;table-layout:fixed}
+.ans th:first-child{width:150px}
+.ans th:last-child{width:90px}
 .ans th{white-space:nowrap;font-size:13px;font-weight:600;color:var(--ink-2);text-align:left;padding:0 12px 6px 0;border-bottom:1.5px solid var(--ink)}
 .ans td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule);vertical-align:baseline}
-.ans td:first-child{white-space:nowrap;width:1%}
-.ans td:last-child{color:var(--ink-2);white-space:nowrap;width:1%;text-align:right;padding-right:0}
+.ans td:first-child{white-space:nowrap}
+.ans td:last-child{color:var(--ink-2);white-space:nowrap;text-align:right;padding-right:0}
 .mk{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:baseline}
 .mk.fz{background:var(--freeze)}
 .mk.lr{background:var(--lora);border-radius:50%}
+.passage .b{text-decoration:underline dotted var(--ink-2) 2px;text-underline-offset:4px}
+.mk.bs{background:none;border-bottom:2px dotted var(--ink-2);height:8px}
 .mk.gd{background:var(--gold);border:1px solid var(--muted-data)}
 .chips{display:flex;gap:6px}
 .chips button{font:14px var(--sans);color:var(--ink-2);background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:3px 10px;cursor:pointer;white-space:nowrap}
@@ -192,7 +196,7 @@ footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:16px;font-si
       <label><input type="checkbox" id="ly-gold" checked><span class="sw" style="background:var(--gold);border:1px solid var(--muted-data)"></span>Gold answer span</label>
       <label><input type="checkbox" id="ly-f" checked><span class="sw" style="border-bottom:3px solid var(--freeze);height:8px"></span>Freezing answer span</label>
       <label><input type="checkbox" id="ly-l" checked><span class="sw" style="border-bottom:3px solid var(--lora);height:8px"></span>LoRA answer span</label>
-      <label><input type="checkbox" id="ly-base" checked><span class="sw" style="border-top:1.5px dashed var(--ink-2);height:0"></span>No-training baselines</label>
+      <label><input type="checkbox" id="ly-base" checked><span class="sw" style="border-bottom:2px dotted var(--ink-2);height:8px"></span>No-training baseline spans</label>
     </div>
   </aside>
 </div>
@@ -265,11 +269,9 @@ function drawChart() {
   s += `<text transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">F1</text>`;
   s += `<line x1="${xb}" x2="${xb}" y1="${m.t}" y2="${H - m.b}" stroke="${C.ink}" stroke-width="1.25"/>`;
   s += `<text x="${xb + 6}" y="${m.t + 14}" style="fill:${C.ink2}">over budget</text>`;
-  if ($('#ly-base').checked) {
-    for (const b of BASE) {
-      s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(b.f1)}" y2="${Y(b.f1)}" stroke="${C.ink2}" stroke-width="1" stroke-dasharray="4 4"/>`;
-      s += `<text x="${W - m.r + 8}" y="${Y(b.f1) + 4}">${BASE_NAME[b.name] || b.name} ${f1(b.f1)}</text>`;
-    }
+  for (const b of BASE) {
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(b.f1)}" y2="${Y(b.f1)}" stroke="${C.ink2}" stroke-width="1" stroke-dasharray="4 4"/>`;
+    s += `<text x="${W - m.r + 8}" y="${Y(b.f1) + 4}">${BASE_NAME[b.name] || b.name} ${f1(b.f1)}</text>`;
   }
   for (const kind of ['freeze', 'lora']) {
     const pts = V.filter(v => v.kind === kind).sort((a, b) => a.trainable_params - b.trainable_params);
@@ -310,6 +312,9 @@ function drawAnswers() {
   if ($('#ly-l').checked && l && ex.answers[l.name].start >= 0) {
     const a = ex.answers[l.name]; marks.push({s: a.start, e: a.start + a.text.length, c: 'l'});
   }
+  if ($('#ly-base').checked) Object.keys(BASE_NAME).forEach(n => {
+    const a = ex.answers[n]; if (a.start >= 0) marks.push({s: a.start, e: a.start + a.text.length, c: 'b'});
+  });
   const cuts = [...new Set([0, ctx.length, ...marks.flatMap(k => [k.s, k.e])])].sort((a, b) => a - b);
   let h = '';
   for (let i = 0; i < cuts.length - 1; i++) {
@@ -330,12 +335,16 @@ function drawAnswers() {
     return row(mk, `<span class="code">${v.name}</span>`, a.text ? esc(a.text) : '<i>empty</i>', a.correct ? 'match' : 'no match');
   };
   rows += ansRow(f, 'fz', 'Freezing') + ansRow(l, 'lr', 'LoRA');
+  Object.entries(BASE_NAME).forEach(([n, label]) => {
+    const a = ex.answers[n];
+    rows += row('bs', label, a.text ? esc(a.text) : '<i>empty</i>', a.correct ? 'match' : 'no match');
+  });
   $('#ans').innerHTML = rows;
   [...$('#chips').children].forEach((b, i) => b.setAttribute('aria-pressed', i === state.q));
   const n = D.examples.length;
   $('#cap2').innerHTML = `<b>Figure 2. Question ${state.q + 1} of ${n} (${ex.question_type.replace('_', '/')}).</b> ` +
     `Answers from the seed-${D.example_seed} run of the selected variant and the best variant of the other method within its trainable-parameter budget. ` +
-    `In the passage, grey fill marks a gold answer, an orange bar under the text the freezing answer and a green bar the LoRA answer. ` +
+    `In the passage, grey fill marks a gold answer, an orange bar under the text the freezing answer and a green bar the LoRA answer, and a dotted underline the no-training baselines. ` +
     `A match means the answer's words equal a gold answer's after SQuAD normalisation.` +
     (ex.note ? ` <b>Limitation.</b> ${esc(ex.note)}` : '');
 }
@@ -364,7 +373,20 @@ function drawColumn() {
   $('#budget-out').textContent = fmtP(budget);
 }
 
-function render() { drawChart(); drawAnswers(); drawColumn(); }
+/* Pin the example block to the tallest question so switching questions does not shift the page */
+function fixHeights() {
+  const els = ['#q', '#passage', '#cap2'].map($).concat($('.ans'));
+  els.forEach(e => { e.style.minHeight = ''; e.style.height = ''; });
+  const keep = state.q, max = els.map(() => 0);
+  D.examples.forEach((_, i) => {
+    state.q = i; drawAnswers();
+    els.forEach((e, j) => { max[j] = Math.max(max[j], e.offsetHeight); });
+  });
+  state.q = keep; drawAnswers();
+  els.forEach((e, j) => { e.style.minHeight = max[j] + 'px'; });
+}
+function render() { drawChart(); fixHeights(); drawColumn(); }
+window.addEventListener('resize', fixHeights);
 
 function selectVariant(name) {
   state.sel = name;
@@ -406,7 +428,7 @@ function build() {
   $('#budget').max = steps.length - 1;
   $('#budget').addEventListener('input', e => setStep(+e.target.value));
   ['#ly-gold', '#ly-f', '#ly-l'].forEach(id => $(id).addEventListener('change', drawAnswers));
-  $('#ly-base').addEventListener('change', drawChart);
+  $('#ly-base').addEventListener('change', drawAnswers);
 
   const n = full.f1.n, ci = Math.round(D.ci_confidence * 100);
   $('#cap1').innerHTML = `<b>Figure 1. Answer F1 against trainable parameters.</b> ` +
